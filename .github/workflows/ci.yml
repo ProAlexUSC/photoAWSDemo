@@ -41,7 +41,9 @@ jobs:
         run: uv sync --all-packages --dev --frozen
 
       - name: Pyright type check
-        run: uvx pyright
+        uses: jakebailey/pyright-action@v2
+        with:
+          python-path: .venv/bin/python
 
       - name: Run database migrations
         env:
