@@ -4,7 +4,7 @@ up:
 	docker compose up -d
 	@sleep 3
 	@echo "MiniStack: http://localhost:4566"
-	@echo "PostgreSQL: localhost:5432"
+	@echo "PostgreSQL: localhost:5433"
 
 down:
 	docker compose down

@@ -11,7 +11,7 @@ import psycopg2
 
 def main():
     db_url = os.environ.get(
-        "DATABASE_URL", "postgresql://dev:dev@localhost:5432/photo_pipeline"
+        "DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline"
     )
 
     s3 = boto3.client("s3")

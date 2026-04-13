@@ -6,7 +6,7 @@ from common.batch_manager import PgBatchManager
 
 @pytest.fixture(autouse=True)
 def db_url():
-    os.environ.setdefault("DATABASE_URL", "postgresql://dev:dev@localhost:5432/photo_pipeline")
+    os.environ.setdefault("DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline")
 
 
 @pytest.fixture
