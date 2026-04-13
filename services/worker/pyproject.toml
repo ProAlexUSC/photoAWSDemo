@@ -1,0 +1,15 @@
+[project]
+name = "worker"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "common",
+    "boto3>=1.28.0",
+    "insightface",
+    "onnxruntime",
+    "opencv-python-headless",
+    "numpy",
+]
+
+[tool.uv.sources]
+common = { workspace = true }

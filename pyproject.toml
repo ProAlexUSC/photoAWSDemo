@@ -1,0 +1,21 @@
+[project]
+name = "photo-pipeline"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "common",
+]
+
+[tool.uv.workspace]
+members = ["packages/*", "services/*"]
+
+[tool.uv.sources]
+common = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
