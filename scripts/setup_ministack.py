@@ -1,5 +1,4 @@
 """启动 MiniStack 后运行一次，创建本地 AWS 资源 + 部署 Lambda Container Image"""
-import subprocess
 import sys
 import time
 
