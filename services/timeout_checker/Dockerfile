@@ -7,7 +7,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages/ packages/
 COPY services/timeout_checker/ services/timeout_checker/
 
-RUN uv sync --package timeout-checker --no-emit-workspace --no-dev --frozen
+RUN uv sync --package timeout-checker --no-install-workspace --no-dev --frozen
 RUN uv sync --package timeout-checker --no-dev --frozen
 
 FROM public.ecr.aws/lambda/python:3.12

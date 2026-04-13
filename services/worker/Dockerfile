@@ -12,7 +12,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages/ packages/
 COPY services/worker/ services/worker/
 
-RUN uv sync --package worker --no-emit-workspace --no-dev --frozen
+RUN uv sync --package worker --no-install-workspace --no-dev --frozen
 RUN uv sync --package worker --no-dev --frozen
 
 RUN uv run python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l')"

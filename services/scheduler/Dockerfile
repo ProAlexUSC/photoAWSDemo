@@ -8,7 +8,7 @@ COPY pyproject.toml uv.lock ./
 COPY packages/ packages/
 COPY services/scheduler/ services/scheduler/
 
-RUN uv sync --package scheduler --no-emit-workspace --no-dev --frozen
+RUN uv sync --package scheduler --no-install-workspace --no-dev --frozen
 RUN uv sync --package scheduler --no-dev --frozen
 
 FROM public.ecr.aws/lambda/python:3.12
