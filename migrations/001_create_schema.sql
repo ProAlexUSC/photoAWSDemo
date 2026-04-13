@@ -32,3 +32,10 @@ CREATE TABLE face_embeddings (
 
 CREATE INDEX idx_face_embedding_hnsw
     ON face_embeddings USING hnsw (embedding vector_cosine_ops);
+
+-- migrate:down
+
+DROP TABLE IF EXISTS face_embeddings;
+DROP TABLE IF EXISTS photos;
+DROP TABLE IF EXISTS photo_batches;
+DROP EXTENSION IF EXISTS vector;

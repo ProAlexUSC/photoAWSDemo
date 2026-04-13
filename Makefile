@@ -1,3 +1,6 @@
+include .env
+export
+
 .PHONY: up down migrate setup test test-e2e build-worker build-scheduler
 
 up:
@@ -10,7 +13,7 @@ down:
 	docker compose down
 
 migrate:
-	dbmate up
+	dbmate -d ./migrations up
 
 build-scheduler:
 	docker build -f services/scheduler/Dockerfile -t photo-scheduler .

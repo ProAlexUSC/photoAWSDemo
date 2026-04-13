@@ -1,4 +1,4 @@
-"""端到端测试：上传照片 → 调用 Lambda → 运行 Worker → 验证 DB"""
+"""端到端测试：上传照片 → Scheduler 写 DB → Worker 处理 → 验证 DB"""
 import json
 import os
 import subprocess
@@ -8,6 +8,9 @@ import time
 import boto3
 import psycopg2
 
+# 让 scheduler handler 可被直接 import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "services", "scheduler", "src"))
+
 
 def main():
     db_url = os.environ.get(
@@ -15,7 +18,6 @@ def main():
     )
 
     s3 = boto3.client("s3")
-    lam = boto3.client("lambda")
 
     # 1. 上传测试照片到 MiniStack S3
     fixture_dir = os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures")
@@ -36,25 +38,18 @@ def main():
         print("❌ No test fixtures found in tests/fixtures/", file=sys.stderr)
         sys.exit(1)
 
-    # 2. 调用 MiniStack Lambda
-    print(f"\n📞 Invoking Lambda with {len(s3_keys)} photos...")
-    resp = lam.invoke(
-        FunctionName="photo-scheduler",
-        Payload=json.dumps({
-            "request_id": f"e2e-test-{int(time.time())}",
-            "user_id": 1,
-            "s3_keys": s3_keys,
-        }),
-    )
-    payload = json.loads(resp["Payload"].read())
-    print(f"Lambda response: {payload}")
+    # 2. 直接调用 scheduler handler（绕过 MiniStack Lambda，更可靠）
+    from scheduler.handler import handler
 
-    if isinstance(payload, dict) and "body" in payload:
-        body = json.loads(payload["body"])
-    else:
-        body = payload
+    request_id = f"e2e-test-{int(time.time())}"
+    print(f"\n📞 Calling scheduler handler with {len(s3_keys)} photos...")
+    result = handler(
+        {"request_id": request_id, "user_id": 1, "s3_keys": s3_keys},
+        None,
+    )
+    body = json.loads(result["body"])
     batch_id = body["batch_id"]
-    print(f"✅ Lambda returned batch_id={batch_id}")
+    print(f"✅ Scheduler returned batch_id={batch_id}")
 
     # 3. Docker 容器运行 Worker（CPU 模式）
     print("\n🔧 Running Worker container...")

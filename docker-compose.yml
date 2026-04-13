@@ -16,6 +16,7 @@ services:
       POSTGRES_PASSWORD: dev
 
   worker:
+    image: photo-worker:latest
     build:
       context: .
       dockerfile: services/worker/Dockerfile

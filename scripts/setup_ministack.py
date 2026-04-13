@@ -50,7 +50,7 @@ def setup():
             Environment={
                 "Variables": {
                     "LOCAL_DEV": "true",
-                    "DATABASE_URL": "postgresql://dev:dev@host.docker.internal:5432/photo_pipeline",
+                    "DATABASE_URL": "postgresql://dev:dev@host.docker.internal:5433/photo_pipeline",
                     "AWS_ENDPOINT_URL": "http://host.docker.internal:4566",
                     "AWS_ACCESS_KEY_ID": "test",
                     "AWS_SECRET_ACCESS_KEY": "test",
