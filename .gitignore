@@ -1,16 +1,42 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.egg-info/
 dist/
+build/
 .venv/
+*.whl
 
 # Environment
 .env
+.env.local
 
 # OS
 .DS_Store
+Thumbs.db
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# pyright / mypy
+.pyright/
+.mypy_cache/
+
+# Docker
+*.tar
+
+# dbmate
+db/schema.sql
+
+# InsightFace model cache (large binary)
+*.onnx
+models/
