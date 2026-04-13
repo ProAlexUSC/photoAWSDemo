@@ -7,5 +7,12 @@ dependencies = [
     "boto3>=1.28.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scheduler"]
+
 [tool.uv.sources]
 common = { workspace = true }
