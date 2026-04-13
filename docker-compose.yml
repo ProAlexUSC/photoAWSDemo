@@ -1,0 +1,32 @@
+services:
+  ministack:
+    image: nahuelnucera/ministack
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: photo_pipeline
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://dev:dev@postgres:5432/photo_pipeline
+      - AWS_ENDPOINT_URL=http://ministack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      - postgres
+      - ministack
+    profiles:
+      - e2e
