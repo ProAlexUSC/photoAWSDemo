@@ -32,11 +32,21 @@ jobs:
         with:
           version: "latest"
 
+      - name: Install dbmate
+        run: |
+          curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64
+          chmod +x /usr/local/bin/dbmate
+
       - name: Install dependencies
         run: uv sync --all-packages --dev --frozen
 
       - name: Pyright type check
-        run: uv run pyright
+        run: uvx pyright
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://dev:dev@localhost:5433/photo_pipeline
+        run: dbmate -d ./migrations up
 
       - name: Run unit tests
         env:
@@ -46,6 +56,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: test
           AWS_DEFAULT_REGION: us-east-1
           LOCAL_DEV: "true"
-        run: |
-          uv run dbmate -d ./migrations up
-          uv run pytest tests/ -v
+        run: uv run pytest tests/ -v
