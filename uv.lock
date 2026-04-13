@@ -792,6 +792,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "numpy" },
     { name = "pytest" },
 ]
 
@@ -799,7 +800,10 @@ dev = [
 requires-dist = [{ name = "common", editable = "packages/common" }]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0.0" }]
+dev = [
+    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "pytest", specifier = ">=8.0.0" },
+]
 
 [[package]]
 name = "pillow"
@@ -1159,7 +1163,7 @@ wheels = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = { virtual = "services/scheduler" }
+source = { editable = "services/scheduler" }
 dependencies = [
     { name = "boto3" },
     { name = "common" },
@@ -1539,7 +1543,7 @@ wheels = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = { virtual = "services/worker" }
+source = { editable = "services/worker" }
 dependencies = [
     { name = "boto3" },
     { name = "common" },
