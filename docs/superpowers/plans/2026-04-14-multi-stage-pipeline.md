@@ -972,11 +972,74 @@ Expected: All pass
 Run: `make test-e2e`
 Expected: 🎉 E2E test passed!
 
-- [ ] **Step 4: 推送到 GitHub**
+- [ ] **Step 4: 更新 CI（.github/workflows/ci.yml）**
 
-Run: `git push`
+新增服务的单元测试已在 `tests/` 目录下，现有 CI 的 `uv run pytest tests/ -v` 会自动覆盖。需要确认：
+- `uv sync --all-packages --dev --frozen` 能安装所有新服务依赖
+- 如果 `uv.lock` 有变更，更新并提交
+
+- [ ] **Step 5: 创建 README.md**
+
+```markdown
+# photoAWS — 照片处理 Pipeline
+
+基于 AWS 的多阶段照片处理系统：人脸检测 → 打标 → VLM 结构化提取。
+
+## 架构
+
+Step Functions 编排：Worker (ECS/Batch) → Tagger (Lambda) → VLM (Lambda) → MarkComplete (Lambda)
+
+## 本地开发
+
+\`\`\`bash
+# 一键启动（MiniStack + PostgreSQL + 资源部署）
+make setup
+
+# 运行单元测试
+make test
+
+# 运行端到端测试（完整 Pipeline）
+make test-e2e
+\`\`\`
+
+## 项目结构
+
+- `packages/common/` — 共享代码（DB、BatchManager）
+- `services/scheduler/` — Lambda：创建 batch，启动状态机
+- `services/worker/` — ECS/Batch：InsightFace 人脸检测 + embedding
+- `services/tagger/` — Lambda：照片打标（Stage 2）
+- `services/vlm_extractor/` — Lambda：VLM 结构化提取（Stage 3）
+- `services/get_photo_ids/` — Lambda：查询 photo_ids 供 Map 使用
+- `services/mark_complete/` — Lambda：标记 batch 完成
+- `state-machines/` — Step Functions 状态机定义
+
+## 技术栈
+
+Python 3.12 · uv workspace · MiniStack · pgvector · InsightFace · Step Functions · LangSmith
+```
+
+- [ ] **Step 6: 提交全部并推送**
+
+```bash
+git add -A
+git commit -m "feat: 多阶段 Pipeline 完成 — Step Functions + mock LLM + e2e 通过
+
+- 4 个新 Lambda（get_photo_ids, tagger, vlm_extractor, mark_complete）
+- Step Functions 状态机编排（Map 并行处理）
+- LangSmith @traceable 可观测性
+- DB migration 002（tags + vlm_result 列）
+- e2e 测试覆盖完整 Pipeline
+- README + CI 更新"
+git push
+```
+
 Expected: CI 全绿
 
-- [ ] **Step 5: 更新 Obsidian 笔记**
+- [ ] **Step 7: 等待 CI 通过**
+
+Run: `gh run watch $(gh run list --limit 1 --json databaseId -q '.[0].databaseId') --exit-status`
+Expected: ✓ All steps passed
+
+- [ ] **Step 8: 更新 Obsidian 笔记**
 
 更新 `照片处理 Pipeline 项目工程化` 笔记，反映 Step Functions 编排和新增服务。
