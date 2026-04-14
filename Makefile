@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: up down migrate setup test test-e2e build-worker build-scheduler build-get-photo-ids build-tagger build-vlm build-mark-complete build-all
+.PHONY: up down migrate setup destroy test test-e2e build-worker build-scheduler build-get-photo-ids build-tagger build-vlm build-mark-complete build-all
 
 up:
 	docker compose up -d
@@ -36,7 +36,11 @@ build-mark-complete:
 build-all: build-scheduler build-worker build-get-photo-ids build-tagger build-vlm build-mark-complete
 
 setup: up migrate build-all
-	uv run python scripts/setup_ministack.py
+	cd terraform && tofu init -input=false && tofu apply -var-file=local.tfvars -auto-approve
+
+destroy:
+	cd terraform && tofu destroy -var-file=local.tfvars -auto-approve
+	docker compose down -v
 
 test:
 	uv run pytest tests/ -v

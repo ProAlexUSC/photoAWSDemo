@@ -40,3 +40,10 @@ db/schema.sql
 # InsightFace model cache (large binary)
 *.onnx
 models/
+
+# Terraform / OpenTofu
+terraform/.terraform/
+terraform/.build/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl

@@ -15,12 +15,12 @@ Scheduler → Step Functions 状态机
   └── MarkComplete (Lambda) — 标记 batch 完成
 ```
 
-本地用 MiniStack 模拟 AWS 服务，代码零修改切换到 AWS。
+本地用 MiniStack 模拟 AWS 服务，Terraform/OpenTofu 统一管理本地和 AWS 部署。
 
 ## 本地开发
 
 ```bash
-# 一键启动（MiniStack + PostgreSQL + 构建镜像 + 部署资源）
+# 一键启动（Docker Compose + migrate + build images + tofu apply）
 make setup
 
 # 运行单元测试（19 tests）
@@ -28,6 +28,9 @@ make test
 
 # 运行端到端测试（完整 Pipeline）
 make test-e2e
+
+# 销毁所有资源
+make destroy
 ```
 
 ### 前置依赖
@@ -35,6 +38,7 @@ make test-e2e
 - Python 3.12 + [uv](https://docs.astral.sh/uv/)
 - Docker
 - [dbmate](https://github.com/amacneil/dbmate)
+- [OpenTofu](https://opentofu.org/) (或 Terraform)
 
 ## 项目结构
 
@@ -48,12 +52,13 @@ services/
 ├── vlm_extractor/        Lambda：VLM 结构化提取（Stage 3，mock）
 └── mark_complete/        Lambda：标记 batch 完成
 state-machines/           Step Functions 状态机定义（local + AWS）
+terraform/                IaC 配置（local.tfvars / aws.tfvars 切换环境）
 migrations/               dbmate SQL 迁移
 ```
 
 ## 技术栈
 
-Python 3.12 · uv workspace · MiniStack · pgvector · InsightFace · Step Functions · LangSmith
+Python 3.12 · uv workspace · OpenTofu · MiniStack · pgvector · InsightFace · Step Functions · LangSmith
 
 ## CI
 
