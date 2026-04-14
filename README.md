@@ -20,13 +20,15 @@ Scheduler → Step Functions 状态机
 ## 本地开发
 
 ```bash
+cp .env.example .env
+
 # 一键启动（Docker Compose + migrate + build images + tofu apply）
 make setup
 
 # 运行单元测试（19 tests）
 make test
 
-# 运行端到端测试（完整 Pipeline）
+# 运行端到端测试（完整 6 步 Pipeline）
 make test-e2e
 
 # 销毁所有资源
@@ -40,6 +42,21 @@ make destroy
 - [dbmate](https://github.com/amacneil/dbmate)
 - [OpenTofu](https://opentofu.org/) (或 Terraform)
 
+## 部署
+
+同一套 Terraform 配置，通过 `tfvars` 切换环境：
+
+```bash
+# 本地 MiniStack（make setup 已包含）
+cd terraform && tofu apply -var-file=local.tfvars
+
+# AWS 部署（填写 Supabase 连接串、ECR 镜像等）
+cd terraform && tofu apply -var-file=aws.tfvars
+
+# 销毁 AWS 资源（防扣费）
+cd terraform && tofu destroy -var-file=aws.tfvars
+```
+
 ## 项目结构
 
 ```
@@ -51,8 +68,8 @@ services/
 ├── tagger/               Lambda：照片打标（Stage 2，mock）
 ├── vlm_extractor/        Lambda：VLM 结构化提取（Stage 3，mock）
 └── mark_complete/        Lambda：标记 batch 完成
-state-machines/           Step Functions 状态机定义（local + AWS）
 terraform/                IaC 配置（local.tfvars / aws.tfvars 切换环境）
+state-machines/           Step Functions 状态机定义（local + AWS）
 migrations/               dbmate SQL 迁移
 ```
 
