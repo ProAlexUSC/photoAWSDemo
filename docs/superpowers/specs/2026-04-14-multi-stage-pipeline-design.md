@@ -272,6 +272,7 @@ RunWorker 使用 `ecs:runTask.sync`：
         }
       },
       "ResultPath": "$.worker_output",
+      "TimeoutSeconds": 600,
       "Retry": [{"ErrorEquals": ["States.ALL"], "MaxAttempts": 2, "BackoffRate": 2}],
       "Next": "GetPhotoIds"
     },
@@ -372,6 +373,16 @@ RunWorker 使用 `ecs:runTask.sync`：
   "Next": "GetPhotoIds"
 }
 ```
+
+### 已知限制与应对
+
+| 限制 | 影响 | 当前状态 | 应对 |
+|------|------|---------|------|
+| State 间数据 payload ≤ 256KB | photo_ids 数组过大会报错 | 1000 张 ≈ 10KB，安全 | 超限时改用 S3 传引用 |
+| Map Lambda 并发 throttle 直接报错 | 不会排队等待 | MaxConcurrency=10，远低于限制 | Retry `States.ALL` 可 catch |
+| ECS RunTask 200 但 Failures 非空 | 容器拉取失败等 | `.sync` 模式自动转 `AmazonECS.Unknown` | Retry 2 次覆盖 |
+| MiniStack SFN+ECS 未经大规模验证 | 本地可能有 bug | 开发测试可接受 | 降级方案：e2e 脚本直接调 Lambda |
+| RunWorker 需要 TimeoutSeconds | 容器挂住时状态机永远等 | 未配置 | 加 `"TimeoutSeconds": 600` |
 
 ---
 
