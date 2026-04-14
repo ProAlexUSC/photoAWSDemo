@@ -1,12 +1,12 @@
 import json
 
 from common.db import get_connection
+from common.tracing import parent_trace_from
 from langsmith import traceable
 
 
 @traceable(name="stage2_tag_photo")
-def handler(event, context):
-    photo_id = event["photo_id"]
+def _tag_photo(photo_id):
     tags = {"scene": "outdoor", "objects": ["person", "tree"], "mood": "happy"}
     conn = get_connection()
     try:
@@ -19,3 +19,8 @@ def handler(event, context):
     finally:
         conn.close()
     return {"photo_id": photo_id, "status": "tagged"}
+
+
+def handler(event, context):
+    with parent_trace_from(event):
+        return _tag_photo(event["photo_id"])

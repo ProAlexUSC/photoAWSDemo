@@ -36,7 +36,7 @@ build-mark-complete:
 build-all: build-scheduler build-worker build-get-photo-ids build-tagger build-vlm build-mark-complete
 
 setup: up migrate build-all
-	cd terraform && [ -d .terraform ] || tofu init -input=false; tofu apply -var-file=local.tfvars -auto-approve
+	cd terraform && [ -d .terraform ] || tofu init -input=false; tofu apply -var-file=local.tfvars -var="langsmith_api_key=$(LANGSMITH_API_KEY)" -auto-approve
 
 destroy:
 	cd terraform && tofu destroy -var-file=local.tfvars -auto-approve

@@ -63,6 +63,18 @@ variable "worker_memory" {
   default = 2048
 }
 
+variable "langsmith_api_key" {
+  description = "LangSmith API key (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "langsmith_project" {
+  type    = string
+  default = "photo-pipeline"
+}
+
 variable "sfn_definition_file" {
   description = "Path to Step Functions state machine JSON"
   type        = string

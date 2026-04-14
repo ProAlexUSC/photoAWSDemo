@@ -45,9 +45,13 @@ locals {
 
   lambda_env = merge(
     {
-      LOCAL_DEV         = local.is_local ? "true" : "false"
-      DATABASE_URL      = var.lambda_database_url
-      STATE_MACHINE_ARN = local.sfn_arn
+      LOCAL_DEV                      = local.is_local ? "true" : "false"
+      DATABASE_URL                   = var.lambda_database_url
+      STATE_MACHINE_ARN              = local.sfn_arn
+      LANGSMITH_API_KEY              = var.langsmith_api_key
+      LANGSMITH_PROJECT              = var.langsmith_project
+      LANGSMITH_TRACING              = local.is_local ? "false" : (var.langsmith_api_key != "" ? "true" : "false")
+      LANGCHAIN_CALLBACKS_BACKGROUND = "false"
     },
     local.is_local ? {
       AWS_ENDPOINT_URL      = var.lambda_aws_endpoint_url

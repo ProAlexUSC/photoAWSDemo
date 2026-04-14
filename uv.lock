@@ -378,12 +378,14 @@ source = { editable = "services/get_photo_ids" }
 dependencies = [
     { name = "boto3" },
     { name = "common" },
+    { name = "langsmith" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.28.0" },
     { name = "common", editable = "packages/common" },
+    { name = "langsmith", specifier = ">=0.3.0" },
 ]
 
 [[package]]
@@ -618,12 +620,14 @@ source = { editable = "services/mark_complete" }
 dependencies = [
     { name = "boto3" },
     { name = "common" },
+    { name = "langsmith" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.28.0" },
     { name = "common", editable = "packages/common" },
+    { name = "langsmith", specifier = ">=0.3.0" },
 ]
 
 [[package]]
