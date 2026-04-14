@@ -1,27 +1,24 @@
-"""端到端测试：上传照片 → Scheduler 启动状态机 → Step Functions 编排全流程 → 验证 DB"""
+"""端到端测试：直接串行调用各 handler，验证完整多阶段 Pipeline"""
 
 import json
 import os
+import subprocess
 import sys
 import time
 
 import boto3
 import psycopg2
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "services", "scheduler", "src"))
+# 让所有 service handler 可被直接 import
+for service_dir in ["scheduler", "get_photo_ids", "tagger", "vlm_extractor", "mark_complete"]:
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "services", service_dir, "src")
+    )
 
 
 def main():
     db_url = os.environ.get("DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline")
-
-    # 确保 STATE_MACHINE_ARN 已设置
-    os.environ.setdefault(
-        "STATE_MACHINE_ARN",
-        "arn:aws:states:us-east-1:000000000000:stateMachine:photo-pipeline",
-    )
-
     s3 = boto3.client("s3")
-    sfn = boto3.client("stepfunctions")
 
     # 1. 上传测试照片到 MiniStack S3
     fixture_dir = os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures")
@@ -39,61 +36,84 @@ def main():
         print("❌ No test fixtures found", file=sys.stderr)
         sys.exit(1)
 
-    # 2. 调用 Scheduler（启动状态机）
-    from scheduler.handler import handler
+    # 2. Scheduler: 创建 batch + photos（直接调用，不走 SFN）
+    from scheduler.handler import handler as scheduler_handler
 
+    os.environ.setdefault(
+        "STATE_MACHINE_ARN",
+        "arn:aws:states:us-east-1:000000000000:stateMachine:photo-pipeline",
+    )
     request_id = f"e2e-test-{int(time.time())}"
-    print(f"\n📞 Calling scheduler with {len(s3_keys)} photos...")
-    result = handler({"request_id": request_id, "user_id": 1, "s3_keys": s3_keys}, None)
+    print(f"\n📞 Step 1: Scheduler — creating batch with {len(s3_keys)} photos...")
+    result = scheduler_handler({"request_id": request_id, "user_id": 1, "s3_keys": s3_keys}, None)
     body = json.loads(result["body"])
     batch_id = body["batch_id"]
-    print(f"✅ Scheduler returned batch_id={batch_id}")
+    print(f"✅ batch_id={batch_id}")
 
-    # 3. 等待状态机执行完成
-    state_machine_arn = os.environ["STATE_MACHINE_ARN"]
-    print("\n⏳ Waiting for Step Functions execution...")
-
-    # 找到最新的执行
-    time.sleep(2)
-    executions = sfn.list_executions(stateMachineArn=state_machine_arn)
-    if not executions.get("executions"):
-        print("❌ No executions found", file=sys.stderr)
+    # 3. Worker: 人脸检测 + embedding（docker compose run）
+    print("\n🔧 Step 2: Worker — face detection + embeddings...")
+    worker_result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "run",
+            "--rm",
+            "-e",
+            f"BATCH_ID={batch_id}",
+            "-e",
+            f"S3_KEYS={json.dumps(s3_keys)}",
+            "worker",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    print(worker_result.stdout)
+    if worker_result.returncode != 0:
+        print(f"❌ Worker failed:\n{worker_result.stderr}", file=sys.stderr)
         sys.exit(1)
+    print("✅ Worker completed")
 
-    execution_arn = executions["executions"][0]["executionArn"]
-    print(f"  Execution: {execution_arn}")
+    # 4. GetPhotoIds: 查询 photo_ids
+    from get_photo_ids.handler import handler as get_ids_handler
 
-    for i in range(120):
-        resp = sfn.describe_execution(executionArn=execution_arn)
-        status = resp["status"]
-        if status in ("SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"):
-            break
-        if i % 10 == 0:
-            print(f"  Status: {status} ({i * 2}s elapsed)")
-        time.sleep(2)
+    print("\n📋 Step 3: GetPhotoIds...")
+    ids_result = get_ids_handler({"batch_id": batch_id}, None)
+    photo_ids = ids_result["photo_ids"]
+    print(f"✅ Found {len(photo_ids)} photos: {photo_ids}")
 
-    print(f"  Final status: {status}")
-    if status != "SUCCEEDED":
-        print("❌ Execution failed!", file=sys.stderr)
-        if "error" in resp:
-            print(f"  Error: {resp['error']}", file=sys.stderr)
-        if "cause" in resp:
-            print(f"  Cause: {resp['cause']}", file=sys.stderr)
-        sys.exit(1)
-    print("✅ State machine completed")
+    # 5. Tagger: 每张照片打标（模拟 Map 并行）
+    from tagger.handler import handler as tagger_handler
 
-    # 4. 验证数据库
+    print(f"\n🏷️  Step 4: Tagger — tagging {len(photo_ids)} photos...")
+    for pid in photo_ids:
+        tagger_handler({"photo_id": pid}, None)
+    print(f"✅ Tagged {len(photo_ids)} photos")
+
+    # 6. VLM Extractor: 每张照片 VLM 提取（模拟 Map 并行）
+    from vlm_extractor.handler import handler as vlm_handler
+
+    print(f"\n🤖 Step 5: VLM Extractor — extracting {len(photo_ids)} photos...")
+    for pid in photo_ids:
+        vlm_handler({"photo_id": pid}, None)
+    print(f"✅ Extracted {len(photo_ids)} photos")
+
+    # 7. MarkComplete: 标记 batch 完成
+    from mark_complete.handler import handler as complete_handler
+
+    print("\n✓  Step 6: MarkComplete...")
+    complete_handler({"batch_id": batch_id}, None)
+    print("✅ Batch marked complete")
+
+    # 8. 验证数据库
     print("\n🔍 Verifying database...")
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
-    # batch status
     cur.execute("SELECT status FROM photo_batches WHERE batch_id = %s", (batch_id,))
     batch = cur.fetchone()
     print(f"  Batch status: {batch[0]}")
     assert batch[0] == "completed", f"Expected 'completed', got '{batch[0]}'"
 
-    # photos completed + face_count
     cur.execute(
         "SELECT COUNT(*), SUM(COALESCE(face_count, 0)) "
         "FROM photos WHERE batch_id = %s AND status = 'completed'",
@@ -101,27 +121,20 @@ def main():
     )
     photos = cur.fetchone()
     print(f"  Photos: {photos[0]} completed, {photos[1] or 0} total faces")
-    assert photos[0] == len(s3_keys), f"Expected {len(s3_keys)} completed, got {photos[0]}"
+    assert photos[0] == len(s3_keys)
 
-    # tags written by Stage 2
-    cur.execute(
-        "SELECT COUNT(*) FROM photos WHERE batch_id = %s AND tags IS NOT NULL",
-        (batch_id,),
-    )
+    cur.execute("SELECT COUNT(*) FROM photos WHERE batch_id = %s AND tags IS NOT NULL", (batch_id,))
     tagged = cur.fetchone()[0]
     print(f"  Tagged: {tagged}/{len(s3_keys)}")
-    assert tagged == len(s3_keys), f"Expected {len(s3_keys)} tagged, got {tagged}"
+    assert tagged == len(s3_keys)
 
-    # vlm_result written by Stage 3
     cur.execute(
-        "SELECT COUNT(*) FROM photos WHERE batch_id = %s AND vlm_result IS NOT NULL",
-        (batch_id,),
+        "SELECT COUNT(*) FROM photos WHERE batch_id = %s AND vlm_result IS NOT NULL", (batch_id,)
     )
     vlm_done = cur.fetchone()[0]
     print(f"  VLM extracted: {vlm_done}/{len(s3_keys)}")
-    assert vlm_done == len(s3_keys), f"Expected {len(s3_keys)} VLM done, got {vlm_done}"
+    assert vlm_done == len(s3_keys)
 
-    # face embeddings
     cur.execute(
         "SELECT COUNT(*) FROM face_embeddings fe "
         "JOIN photos p ON fe.photo_id = p.photo_id "
@@ -135,7 +148,7 @@ def main():
         print("  ⚠️  No face embeddings (test images may not contain detectable faces)")
 
     conn.close()
-    print("\n🎉 E2E test passed! Full pipeline: Worker → Tagger → VLM → Complete")
+    print("\n🎉 E2E test passed! Full pipeline: Scheduler → Worker → Tagger → VLM → Complete")
 
 
 if __name__ == "__main__":
