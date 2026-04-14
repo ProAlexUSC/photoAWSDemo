@@ -2,13 +2,17 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.12",
+  "include": [
+    "packages/common/src",
+    "services/scheduler/src",
+    "services/timeout_checker/src",
+    "tests/"
+  ],
   "extraPaths": [
     "packages/common/src",
     "services/scheduler/src",
-    "services/worker/src",
     "services/timeout_checker/src"
   ],
-  "exclude": ["scripts/", "services/worker/"],
   "reportMissingModuleSource": false,
   "reportOptionalSubscript": "warning"
 }
