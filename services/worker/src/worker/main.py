@@ -5,10 +5,9 @@ import boto3
 import cv2
 import numpy as np
 import onnxruntime
-from insightface.app import FaceAnalysis
-
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
+from insightface.app import FaceAnalysis
 
 
 def _load_model() -> FaceAnalysis:

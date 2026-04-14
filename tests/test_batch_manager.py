@@ -1,4 +1,5 @@
 import os
+
 import psycopg2
 import pytest
 from common.batch_manager import PgBatchManager

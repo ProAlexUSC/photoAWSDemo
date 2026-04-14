@@ -1,4 +1,5 @@
 import psycopg2
+
 from common.config import get_database_url
 
 

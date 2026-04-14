@@ -2,7 +2,6 @@ import json
 import os
 
 import boto3
-
 from common.batch_manager import PgBatchManager
 from common.config import is_local
 from common.db import get_connection

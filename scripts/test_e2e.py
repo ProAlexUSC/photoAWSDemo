@@ -1,4 +1,5 @@
 """端到端测试：上传照片 → Scheduler 写 DB → Worker 处理 → 验证 DB"""
+
 import json
 import os
 import subprocess
@@ -13,9 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "services", "sc
 
 
 def main():
-    db_url = os.environ.get(
-        "DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline"
-    )
+    db_url = os.environ.get("DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline")
 
     s3 = boto3.client("s3")
 
@@ -26,11 +25,8 @@ def main():
         if filename.endswith(".jpg"):
             key = f"test/{filename}"
             filepath = os.path.join(fixture_dir, filename)
-            s3.put_object(
-                Bucket="photo-uploads",
-                Key=key,
-                Body=open(filepath, "rb").read(),
-            )
+            with open(filepath, "rb") as f:
+                s3.put_object(Bucket="photo-uploads", Key=key, Body=f.read())
             s3_keys.append(key)
             print(f"✅ Uploaded {key}")
 
@@ -55,9 +51,14 @@ def main():
     print("\n🔧 Running Worker container...")
     result = subprocess.run(
         [
-            "docker", "compose", "run", "--rm",
-            "-e", f"BATCH_ID={batch_id}",
-            "-e", f"S3_KEYS={json.dumps(s3_keys)}",
+            "docker",
+            "compose",
+            "run",
+            "--rm",
+            "-e",
+            f"BATCH_ID={batch_id}",
+            "-e",
+            f"S3_KEYS={json.dumps(s3_keys)}",
             "worker",
         ],
         capture_output=True,
@@ -83,7 +84,8 @@ def main():
     assert batch[0] == "completed", f"Expected batch status 'completed', got '{batch[0]}'"
 
     cur.execute(
-        "SELECT COUNT(*), SUM(COALESCE(face_count, 0)) FROM photos WHERE batch_id = %s AND status = 'completed'",
+        "SELECT COUNT(*), SUM(COALESCE(face_count, 0)) "
+        "FROM photos WHERE batch_id = %s AND status = 'completed'",
         (batch_id,),
     )
     photos = cur.fetchone()

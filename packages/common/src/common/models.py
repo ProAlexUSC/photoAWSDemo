@@ -1,14 +1,14 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class BatchStatus(str, Enum):
+class BatchStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     TIMEOUT = "timeout"
 
 
-class PhotoStatus(str, Enum):
+class PhotoStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"

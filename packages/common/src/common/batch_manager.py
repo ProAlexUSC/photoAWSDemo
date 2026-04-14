@@ -1,4 +1,5 @@
 import json
+
 from psycopg2.extensions import connection as PgConnection
 
 
