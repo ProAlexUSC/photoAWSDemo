@@ -44,6 +44,8 @@ jobs:
         uses: jakebailey/pyright-action@v2
         with:
           python-path: .venv/bin/python
+          no-comments: true
+        timeout-minutes: 5
 
       - name: Run database migrations
         env:
