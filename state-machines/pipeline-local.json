@@ -1,0 +1,113 @@
+{
+  "Comment": "Photo Pipeline: Worker → Tag (parallel) → VLM (parallel) → Complete",
+  "StartAt": "RunWorker",
+  "States": {
+    "RunWorker": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "Cluster": "photo-pipeline",
+        "TaskDefinition": "photo-worker",
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "worker",
+            "Environment": [
+              {"Name": "BATCH_ID", "Value.$": "States.Format('{}', $.batch_id)"},
+              {"Name": "S3_KEYS", "Value.$": "States.JsonToString($.s3_keys)"},
+              {"Name": "DATABASE_URL", "Value": "postgresql://dev:dev@host.docker.internal:5433/photo_pipeline"},
+              {"Name": "AWS_ENDPOINT_URL", "Value": "http://host.docker.internal:4566"},
+              {"Name": "AWS_ACCESS_KEY_ID", "Value": "test"},
+              {"Name": "AWS_SECRET_ACCESS_KEY", "Value": "test"},
+              {"Name": "AWS_DEFAULT_REGION", "Value": "us-east-1"}
+            ]
+          }]
+        }
+      },
+      "ResultPath": "$.worker_output",
+      "TimeoutSeconds": 600,
+      "Retry": [{"ErrorEquals": ["States.ALL"], "MaxAttempts": 2, "BackoffRate": 2}],
+      "Next": "GetPhotoIds"
+    },
+    "GetPhotoIds": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "get-photo-ids",
+        "Payload": {
+          "batch_id.$": "$.batch_id"
+        }
+      },
+      "ResultSelector": {
+        "batch_id.$": "$.Payload.batch_id",
+        "photo_ids.$": "$.Payload.photo_ids"
+      },
+      "ResultPath": "$",
+      "Next": "TagPhotos"
+    },
+    "TagPhotos": {
+      "Type": "Map",
+      "ItemsPath": "$.photo_ids",
+      "MaxConcurrency": 10,
+      "ItemProcessor": {
+        "ProcessorConfig": {"Mode": "INLINE"},
+        "StartAt": "TagOnePhoto",
+        "States": {
+          "TagOnePhoto": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "photo-tagger",
+              "Payload": {
+                "photo_id.$": "$"
+              }
+            },
+            "ResultSelector": {
+              "photo_id.$": "$.Payload.photo_id"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.tag_results",
+      "Next": "VLMExtract"
+    },
+    "VLMExtract": {
+      "Type": "Map",
+      "ItemsPath": "$.photo_ids",
+      "MaxConcurrency": 10,
+      "ItemProcessor": {
+        "ProcessorConfig": {"Mode": "INLINE"},
+        "StartAt": "ExtractOnePhoto",
+        "States": {
+          "ExtractOnePhoto": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "photo-vlm",
+              "Payload": {
+                "photo_id.$": "$"
+              }
+            },
+            "ResultSelector": {
+              "photo_id.$": "$.Payload.photo_id"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.vlm_results",
+      "Next": "MarkComplete"
+    },
+    "MarkComplete": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "photo-mark-complete",
+        "Payload": {
+          "batch_id.$": "$.batch_id"
+        }
+      },
+      "End": true
+    }
+  }
+}
