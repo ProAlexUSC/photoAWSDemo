@@ -3,7 +3,6 @@ import os
 
 import boto3
 from common.batch_manager import PgBatchManager
-from common.config import is_local
 from common.db import get_connection
 
 
@@ -20,19 +19,12 @@ def handler(event, context):
     finally:
         conn.close()
 
-    if not is_local():
-        batch_client = boto3.client("batch")
-        batch_client.submit_job(
-            jobName=f"photo-batch-{batch_id}",
-            jobQueue=os.environ["GPU_JOB_QUEUE"],
-            jobDefinition=os.environ["JOB_DEFINITION"],
-            containerOverrides={
-                "environment": [
-                    {"name": "BATCH_ID", "value": str(batch_id)},
-                    {"name": "S3_KEYS", "value": json.dumps(s3_keys)},
-                ]
-            },
-        )
+    sfn = boto3.client("stepfunctions")
+    sfn.start_execution(
+        stateMachineArn=os.environ["STATE_MACHINE_ARN"],
+        name=f"batch-{batch_id}",
+        input=json.dumps({"batch_id": batch_id, "s3_keys": s3_keys}),
+    )
 
     return {
         "statusCode": 200,
