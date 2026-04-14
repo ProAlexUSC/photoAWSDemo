@@ -28,17 +28,21 @@ def handler(event, context):
     sfn.start_execution(
         stateMachineArn=os.environ["STATE_MACHINE_ARN"],
         name=f"batch-{batch_id}",
-        input=json.dumps({
-            "batch_id": batch_id,
-            "s3_keys": s3_keys,
-            "langsmith_trace_context": trace_ctx,
-        }),
+        input=json.dumps(
+            {
+                "batch_id": batch_id,
+                "s3_keys": s3_keys,
+                "langsmith_trace_context": trace_ctx,
+            }
+        ),
     )
 
     return {
         "statusCode": 200,
-        "body": json.dumps({
-            "batch_id": batch_id,
-            "langsmith_trace_context": trace_ctx,
-        }),
+        "body": json.dumps(
+            {
+                "batch_id": batch_id,
+                "langsmith_trace_context": trace_ctx,
+            }
+        ),
     }
