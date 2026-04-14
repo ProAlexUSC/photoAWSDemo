@@ -1,12 +1,12 @@
 import json
 
 from common.db import get_connection
+from common.tracing import parent_trace_from
 from langsmith import traceable
 
 
 @traceable(name="stage3_vlm_extract")
-def handler(event, context):
-    photo_id = event["photo_id"]
+def _vlm_extract(photo_id):
     vlm_result = {
         "description": "A person standing in a park",
         "entities": [{"type": "person", "name": "unknown"}],
@@ -23,3 +23,8 @@ def handler(event, context):
     finally:
         conn.close()
     return {"photo_id": photo_id, "status": "extracted"}
+
+
+def handler(event, context):
+    with parent_trace_from(event):
+        return _vlm_extract(event["photo_id"])

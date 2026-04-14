@@ -12,6 +12,12 @@ import psycopg2
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "services", "scheduler", "src"))
 
 
+def _make_payload(data, trace_ctx):
+    if trace_ctx:
+        data["langsmith_trace_context"] = trace_ctx
+    return json.dumps(data)
+
+
 def main():
     db_url = os.environ.get("DATABASE_URL", "postgresql://dev:dev@localhost:5433/photo_pipeline")
 
@@ -39,7 +45,7 @@ def main():
         print("❌ No test fixtures found", file=sys.stderr)
         sys.exit(1)
 
-    # 2. Scheduler: 创建 batch（直接调用，因为 MiniStack Container Image Lambda 有 bug）
+    # 2. Scheduler: 创建 batch + 启动 Pipeline（返回 trace context 供后续传播）
     from scheduler.handler import handler as scheduler_handler
 
     request_id = f"e2e-test-{int(time.time())}"
@@ -47,6 +53,7 @@ def main():
     result = scheduler_handler({"request_id": request_id, "user_id": 1, "s3_keys": s3_keys}, None)
     body = json.loads(result["body"])
     batch_id = body["batch_id"]
+    trace_ctx = body.get("langsmith_trace_context", {})
     print(f"✅ batch_id={batch_id}")
 
     # 3. Worker: docker compose run（ECS RunTask 在 MiniStack 上不真正执行容器）
@@ -72,30 +79,40 @@ def main():
         sys.exit(1)
     print("✅ Worker completed")
 
-    # 4. 后续 Pipeline 通过 MiniStack Lambda invoke（模拟 Step Functions Map + Lambda）
+    # 4. 后续 Pipeline 通过 MiniStack Lambda invoke（trace context 随 event 传播）
     print("\n📋 Step 3: GetPhotoIds via MiniStack Lambda...")
-    resp = lam.invoke(FunctionName="get-photo-ids", Payload=json.dumps({"batch_id": batch_id}))
+    resp = lam.invoke(
+        FunctionName="get-photo-ids",
+        Payload=_make_payload({"batch_id": batch_id}, trace_ctx),
+    )
     ids_result = json.loads(resp["Payload"].read())
     photo_ids = ids_result["photo_ids"]
     print(f"✅ Found {len(photo_ids)} photos: {photo_ids}")
 
     print(f"\n🏷️  Step 4: Tagger — tagging {len(photo_ids)} photos via MiniStack Lambda...")
     for pid in photo_ids:
-        resp = lam.invoke(FunctionName="photo-tagger", Payload=json.dumps({"photo_id": pid}))
+        resp = lam.invoke(
+            FunctionName="photo-tagger",
+            Payload=_make_payload({"photo_id": pid}, trace_ctx),
+        )
         tag_result = json.loads(resp["Payload"].read())
         assert tag_result["status"] == "tagged", f"Tagger failed for {pid}: {tag_result}"
     print(f"✅ Tagged {len(photo_ids)} photos")
 
     print(f"\n🤖 Step 5: VLM — extracting {len(photo_ids)} photos via MiniStack Lambda...")
     for pid in photo_ids:
-        resp = lam.invoke(FunctionName="photo-vlm", Payload=json.dumps({"photo_id": pid}))
+        resp = lam.invoke(
+            FunctionName="photo-vlm",
+            Payload=_make_payload({"photo_id": pid}, trace_ctx),
+        )
         vlm_result = json.loads(resp["Payload"].read())
         assert vlm_result["status"] == "extracted", f"VLM failed for {pid}: {vlm_result}"
     print(f"✅ Extracted {len(photo_ids)} photos")
 
     print("\n✓  Step 6: MarkComplete via MiniStack Lambda...")
     resp = lam.invoke(
-        FunctionName="photo-mark-complete", Payload=json.dumps({"batch_id": batch_id})
+        FunctionName="photo-mark-complete",
+        Payload=_make_payload({"batch_id": batch_id}, trace_ctx),
     )
     complete_result = json.loads(resp["Payload"].read())
     assert complete_result["status"] == "completed", f"MarkComplete failed: {complete_result}"
