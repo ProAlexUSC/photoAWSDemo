@@ -16,7 +16,6 @@ members = [
     "photo-pipeline",
     "scheduler",
     "tagger",
-    "timeout-checker",
     "vlm-extractor",
     "worker",
 ]
@@ -949,6 +948,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "langsmith" },
     { name = "numpy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -959,6 +959,7 @@ requires-dist = [{ name = "common", editable = "packages/common" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "langsmith", specifier = ">=0.3.0" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "ruff", specifier = ">=0.11.0" },
@@ -1685,21 +1686,6 @@ dependencies = [
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/d7/4a/e687f5957fead200faad58dbf9c9431a2bbb118040e96f5fb8a55f7ebc50/tifffile-2026.4.11.tar.gz", hash = "sha256:17758ff0c0d4db385792a083ad3ca51fcb0f4d942642f4d8f8bc1287fdcf17bc", size = 394956 }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/3f/9f/74f110b4271ded519c7add4341cbabc824de26817ff1c345b3109df9e99c/tifffile-2026.4.11-py3-none-any.whl", hash = "sha256:9b94ffeddb39e97601af646345e8808f885773de01b299e480ed6d3a41509ec9", size = 248227 },
-]
-
-[[package]]
-name = "timeout-checker"
-version = "0.1.0"
-source = { virtual = "services/timeout_checker" }
-dependencies = [
-    { name = "boto3" },
-    { name = "common" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "boto3", specifier = ">=1.28.0" },
-    { name = "common", editable = "packages/common" },
 ]
 
 [[package]]

@@ -5,13 +5,15 @@
   "include": [
     "packages/common/src",
     "services/scheduler/src",
-    "services/timeout_checker/src",
+    "services/get_photo_ids/src",
+    "services/mark_complete/src",
     "tests/"
   ],
   "extraPaths": [
     "packages/common/src",
     "services/scheduler/src",
-    "services/timeout_checker/src"
+    "services/get_photo_ids/src",
+    "services/mark_complete/src"
   ],
   "reportMissingModuleSource": false,
   "reportOptionalSubscript": "warning"
