@@ -6,9 +6,6 @@ aws_endpoint_url = "http://localhost:4566"
 aws_access_key   = "test"
 aws_secret_key   = "test"
 
-# DB 连接（从主机视角，用于 Terraform provider）
-database_url = "postgresql://dev:dev@localhost:5433/photo_pipeline"
-
 # Lambda 内部网络（MiniStack Warm Workers 在 compose 网络内）
 lambda_database_url     = "postgresql://dev:dev@postgres:5432/photo_pipeline"
 lambda_aws_endpoint_url = "http://ministack:4566"

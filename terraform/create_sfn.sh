@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# 用 uv run 调 Python 创建/更新 MiniStack Step Functions 状态机
 set -euo pipefail
-
-SFN_FILE="$1"
-REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 
 cd "$(dirname "$0")/.."
 
-uv run python -c "
-import boto3, json, sys, os
+export SFN_FILE="$1"
 
-with open('$SFN_FILE') as f:
+uv run python -c "
+import boto3, os
+
+with open(os.environ['SFN_FILE']) as f:
     definition = f.read()
 
 sfn = boto3.client('stepfunctions')
+region = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
 name = 'photo-pipeline'
-arn = f'arn:aws:states:${REGION}:000000000000:stateMachine:{name}'
+arn = f'arn:aws:states:{region}:000000000000:stateMachine:{name}'
 
 try:
     sfn.create_state_machine(

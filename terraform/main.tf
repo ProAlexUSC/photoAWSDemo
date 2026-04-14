@@ -43,15 +43,19 @@ provider "aws" {
 locals {
   is_local = var.environment == "local"
 
-  lambda_env = {
-    LOCAL_DEV            = local.is_local ? "true" : "false"
-    DATABASE_URL         = var.lambda_database_url
-    AWS_ENDPOINT_URL     = var.lambda_aws_endpoint_url != null ? var.lambda_aws_endpoint_url : ""
-    AWS_ACCESS_KEY_ID    = var.aws_access_key
-    AWS_SECRET_ACCESS_KEY = var.aws_secret_key
-    AWS_DEFAULT_REGION   = var.aws_region
-    STATE_MACHINE_ARN    = local.sfn_arn
-  }
+  lambda_env = merge(
+    {
+      LOCAL_DEV         = local.is_local ? "true" : "false"
+      DATABASE_URL      = var.lambda_database_url
+      STATE_MACHINE_ARN = local.sfn_arn
+    },
+    local.is_local ? {
+      AWS_ENDPOINT_URL      = var.lambda_aws_endpoint_url
+      AWS_ACCESS_KEY_ID     = var.aws_access_key
+      AWS_SECRET_ACCESS_KEY = var.aws_secret_key
+      AWS_DEFAULT_REGION    = var.aws_region
+    } : {}
+  )
 
   lambdas = {
     "photo-scheduler" = {

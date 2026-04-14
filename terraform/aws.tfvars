@@ -5,7 +5,6 @@ aws_region  = "us-east-1"
 aws_endpoint_url = null
 
 # Supabase (Transaction mode)
-database_url            = "postgresql://postgres.xxx:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 lambda_database_url     = "postgresql://postgres.xxx:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
 lambda_aws_endpoint_url = null
 

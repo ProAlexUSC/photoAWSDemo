@@ -25,11 +25,6 @@ variable "aws_secret_key" {
   default = "test"
 }
 
-variable "database_url" {
-  description = "PostgreSQL connection string (from Lambda perspective)"
-  type        = string
-}
-
 variable "lambda_database_url" {
   description = "PostgreSQL connection string from Lambda/container network"
   type        = string

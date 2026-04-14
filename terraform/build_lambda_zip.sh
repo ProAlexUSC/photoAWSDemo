@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Terraform data.external 调用：打包 Lambda zip，输出 {"path": "...", "hash": "..."}
+# data.external: 打包 Lambda zip，输出 {"path": "...", "hash": "..."}
 set -euo pipefail
 
 SERVICE_NAME="$1"
@@ -13,10 +13,7 @@ rm -f "$ZIP_FILE"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-# service 源码
 cp -r "${ROOT_DIR}/services/${SERVICE_NAME}/src/"* "$TMPDIR/"
-
-# common 源码
 cp -r "${ROOT_DIR}/packages/common/src/"* "$TMPDIR/"
 
 cd "$TMPDIR"
