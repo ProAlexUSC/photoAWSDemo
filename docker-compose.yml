@@ -1,6 +1,8 @@
 services:
   ministack:
-    image: nahuelnucera/ministack
+    build:
+      context: .
+      dockerfile: docker/ministack.Dockerfile
     ports:
       - "4566:4566"
     volumes:

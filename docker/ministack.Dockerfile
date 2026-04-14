@@ -1,0 +1,3 @@
+FROM nahuelnucera/ministack
+
+RUN pip install --no-cache-dir psycopg2-binary boto3 langsmith
