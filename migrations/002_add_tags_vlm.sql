@@ -1,0 +1,7 @@
+-- migrate:up
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS tags JSONB;
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS vlm_result JSONB;
+
+-- migrate:down
+ALTER TABLE photos DROP COLUMN IF EXISTS vlm_result;
+ALTER TABLE photos DROP COLUMN IF EXISTS tags;
