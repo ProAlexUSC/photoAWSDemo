@@ -18,19 +18,24 @@
 ## 常用命令
 
 ```bash
-make check-deps   # 检查 docker/uv/dbmate/tofu + docker 守护进程 + .env（setup 前自动跑）
-make deps         # brew 装 dbmate opentofu uv（docker 需自行装）
+# 本地 MiniStack
+make check-deps       # 校验 docker/uv/dbmate/tofu + docker daemon + .env（setup 前自动跑）
+make deps             # brew 装 dbmate opentofu uv（docker 需自行装）
 make download-models  # 主机预下载 InsightFace buffalo_l ~275MB 到 docker/models/
-make setup        # check-deps + up + migrate + build-all + tofu apply
-make test-e2e     # 端到端测试（依赖 setup）
-make destroy      # tofu destroy + docker compose down -v
-make up           # 只启动 Docker Compose
-make down         # 只停止 Docker Compose
-make migrate      # 只执行数据库迁移
-make build-all    # 只构建全部 Docker 镜像
-make test         # pytest 单元测试
-uv run ruff check .          # lint
-uv run ruff format --check . # format check
+make setup            # check-deps + up + migrate + build-all + tofu apply(local)
+make test             # pytest 33 个单元测试
+make test-e2e         # 端到端测试（依赖 setup）
+make destroy          # tofu destroy + docker compose down -v
+make up / down / migrate / build-all  # 分步骤
+
+# 真 AWS 部署
+make build-push-worker-ecr   # Build + push Worker 镜像到 ECR（依赖 aws CLI 已登录）
+make apply-aws               # 读 .env 的 Supabase + Langfuse 凭证，tofu apply(aws workspace)
+make destroy-aws             # 真 AWS 销毁
+
+# 代码质量
+uv run ruff check .
+uv run ruff format --check .
 ```
 
 ## 项目结构
@@ -73,9 +78,11 @@ uv run ruff format --check . # format check
 
 ## 环境配置
 
-- `.env` 基于 `.env.example`（AWS_ENDPOINT_URL、DATABASE_URL、LANGFUSE_* 等）
+- `.env` 基于 `.env.example`（AWS_ENDPOINT_URL、DATABASE_URL、LANGFUSE_*、SUPABASE_* 等）
 - Makefile 用 `-include .env` + `export` 加载；若缺失，`check-deps` 自动 `cp .env.example .env`
-- `make setup` 会将 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` 通过 `-var` 传给 Terraform 注入 Lambda env
+- **secret 不入 tfvars**：`make setup` / `make apply-aws` 用 `-var` 从 `.env` 组合传给 Terraform 注入 Lambda env
+- **AWS 部署**：`make apply-aws` 用 `env -u` 清掉 `.env` 的 MiniStack 污染（AWS_ENDPOINT_URL/test keys），避免真 AWS CLI 走到 localhost:4566
+- Terraform 用 workspace 隔离：`default` = local MiniStack，`aws` = 真 AWS
 - e2e 测试需要 Docker 运行（MiniStack + PostgreSQL + Worker 容器）
 
 ## 国内镜像配置
