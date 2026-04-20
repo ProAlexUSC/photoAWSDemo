@@ -1,9 +1,9 @@
 from common.db import get_connection
-from common.tracing import parent_trace_from
-from langsmith import traceable
+from common.tracing import run_traced
+from langfuse import observe
 
 
-@traceable(name="get_photo_ids")
+@observe(name="get_photo_ids")
 def _get_photo_ids(batch_id):
     conn = get_connection()
     try:
@@ -19,5 +19,4 @@ def _get_photo_ids(batch_id):
 
 
 def handler(event, context):
-    with parent_trace_from(event):
-        return _get_photo_ids(event["batch_id"])
+    return run_traced(_get_photo_ids, event, event["batch_id"])

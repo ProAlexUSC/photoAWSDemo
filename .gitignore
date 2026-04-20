@@ -46,4 +46,14 @@ terraform/.terraform/
 terraform/.build/
 terraform/*.tfstate
 terraform/*.tfstate.backup
+terraform/terraform.tfstate.d/
 terraform/.terraform.lock.hcl
+
+# ML 模型（本地预下载，不入库）
+docker/models/
+
+# Claude Code 本地 harness / 插件缓存（各人不同，不入库）
+.claude/
+.agents/
+skills-lock.json
+

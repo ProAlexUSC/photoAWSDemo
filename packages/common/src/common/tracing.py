@@ -1,52 +1,70 @@
-"""LangSmith 分布式 trace 传播"""
+"""Langfuse 分布式 trace 传播 + Lambda flush 保证。
 
-import os
+Scheduler 用 init_trace_id(seed=request_id) 生成确定性 32-hex trace_id，在 @observe
+root span 内捕获自己的 observation_id 作为 parent，两个字段一起塞进 SFN input，下游
+Lambda 通过 @observe 的 langfuse_trace_id + langfuse_parent_observation_id kwarg
+挂到同一棵树（真父子嵌套，不是平铺 sibling）。
+
+flush() 在每次 handler 退出前强制调用，避免 Warm Worker 冻结时在途 span 丢失。
+"""
+
+import contextlib
 from contextlib import contextmanager
 
-try:
-    from langsmith.run_helpers import get_current_run_tree, tracing_context
-    from langsmith.run_trees import RunTree
-
-    _HAS_LANGSMITH = True
-except ImportError:
-    _HAS_LANGSMITH = False
+from langfuse import get_client
 
 
-def get_trace_headers() -> dict:
-    """从当前 @traceable 上下文提取 headers，供传播到下游 Lambda"""
-    if not _HAS_LANGSMITH or os.environ.get("LANGSMITH_TRACING") != "true":
-        return {}
+def init_trace_id(seed: str) -> str:
+    """基于 seed（request_id）生成 32-hex 确定性 trace_id。
+
+    未配 Langfuse 或初始化失败时返回空字符串；下游 kwargs_from_event 识别为"无 trace"
+    跳过，@observe 仍可工作但 span 不会关联到目标 trace（退化，不报错）。
+    """
     try:
-        rt = get_current_run_tree()
-        return rt.to_headers() if rt else {}
+        return get_client().create_trace_id(seed=seed)
     except Exception:
-        return {}
+        return ""
 
 
 @contextmanager
-def parent_trace_from(event: dict):
-    """从 event 中恢复 parent trace context。
+def traced_handler():
+    """Lambda handler 用 with 包住 handler 体，退出前强制 flush。
 
-    AWS (LANGSMITH_TRACING=true):  直接设 parent，@traceable 已启用
-    本地 (LANGSMITH_TRACING=false): 临时启用 tracing + 设 parent
-    无 headers 或无 API key:       直接 yield
+    适用于有 key / 无 key 两种场景；无 key 时 get_client() 返回的 no-op client
+    的 flush() 也是 no-op。flush 本身异常不影响业务返回。
     """
-    headers = event.get("langsmith_trace_context")
-    if not headers or not _HAS_LANGSMITH or not os.environ.get("LANGSMITH_API_KEY"):
-        yield
-        return
-
-    tracing_was_on = os.environ.get("LANGSMITH_TRACING") == "true"
-
     try:
-        if not tracing_was_on:
-            os.environ["LANGSMITH_TRACING"] = "true"
-
-        parent = RunTree.from_headers(headers)
-        with tracing_context(parent=parent):
-            yield
-    except Exception:
         yield
     finally:
-        if not tracing_was_on:
-            os.environ["LANGSMITH_TRACING"] = "false"
+        with contextlib.suppress(Exception):
+            get_client().flush()
+
+
+def kwargs_from_event(event: dict) -> dict:
+    """从 event payload 提取 Langfuse 的魔法 kwarg 组成 @observe 友好的 dict。
+
+    空串 / 缺失字段跳过。调用方 `**kwargs` 展开即可，无副作用。
+    一般用 run_traced(fn, event, ...) 而不是直接调这个。
+    """
+    kw: dict[str, str] = {}
+    tid = event.get("langfuse_trace_id")
+    if tid:
+        kw["langfuse_trace_id"] = tid
+    pid = event.get("langfuse_parent_observation_id")
+    if pid:
+        kw["langfuse_parent_observation_id"] = pid
+    return kw
+
+
+def run_traced(fn, event: dict, *args, **kwargs):
+    """Lambda handler 专用 helper：
+    1. 从 event 抽 langfuse_trace_id / langfuse_parent_observation_id
+    2. 把它们作为 @observe 魔法 kwarg 注入 fn 调用
+    3. 退出前 flush
+
+    用法：
+        def handler(event, context):
+            return run_traced(_tag_photo, event, event["photo_id"])
+    """
+    with traced_handler():
+        return fn(*args, **kwargs, **kwargs_from_event(event))

@@ -1,10 +1,10 @@
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
-from common.tracing import parent_trace_from
-from langsmith import traceable
+from common.tracing import run_traced
+from langfuse import observe
 
 
-@traceable(name="mark_complete")
+@observe(name="mark_complete")
 def _mark_complete(batch_id):
     conn = get_connection()
     try:
@@ -17,5 +17,4 @@ def _mark_complete(batch_id):
 
 
 def handler(event, context):
-    with parent_trace_from(event):
-        return _mark_complete(event["batch_id"])
+    return run_traced(_mark_complete, event, event["batch_id"])
