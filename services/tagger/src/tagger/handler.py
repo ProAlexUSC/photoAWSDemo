@@ -21,7 +21,6 @@ def _tag_photo(photo_id):
     finally:
         conn.close()
 
-    # 用 update_current_span 覆盖 input/output + 挂 metadata
     get_client().update_current_span(
         input={"photo_id": photo_id, "s3_key": s3_key},
         metadata={"s3_key": s3_key, "tag_count": len(tags)},

@@ -40,20 +40,30 @@ def traced_handler():
             get_client().flush()
 
 
-def kwargs_from_event(event: dict) -> dict:
-    """从 event payload 提取 Langfuse 的魔法 kwarg 组成 @observe 友好的 dict。
-
-    空串 / 缺失字段跳过。调用方 `**kwargs` 展开即可，无副作用。
-    一般用 run_traced(fn, event, ...) 而不是直接调这个。
-    """
+def _extract_langfuse_kwargs(source: dict, trace_key: str, parent_key: str) -> dict:
+    """从任意 dict-like source 抽 Langfuse 魔法 kwarg；空串/缺失跳过。"""
     kw: dict[str, str] = {}
-    tid = event.get("langfuse_trace_id")
-    if tid:
+    if tid := source.get(trace_key):
         kw["langfuse_trace_id"] = tid
-    pid = event.get("langfuse_parent_observation_id")
-    if pid:
+    if pid := source.get(parent_key):
         kw["langfuse_parent_observation_id"] = pid
     return kw
+
+
+def kwargs_from_event(event: dict) -> dict:
+    """Lambda 用：event 里 langfuse_trace_id / langfuse_parent_observation_id 字段。"""
+    return _extract_langfuse_kwargs(event, "langfuse_trace_id", "langfuse_parent_observation_id")
+
+
+def kwargs_from_env(env: dict | None = None) -> dict:
+    """Worker（非 Lambda）用：环境变量 LANGFUSE_TRACE_ID / LANGFUSE_PARENT_OBS_ID。"""
+    import os
+
+    return _extract_langfuse_kwargs(
+        env if env is not None else os.environ,
+        "LANGFUSE_TRACE_ID",
+        "LANGFUSE_PARENT_OBS_ID",
+    )
 
 
 def run_traced(fn, event: dict, *args, **kwargs):

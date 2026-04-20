@@ -4,7 +4,8 @@ aws_region  = "us-west-1"
 # 真 AWS — 不设 endpoint override
 aws_endpoint_url = null
 
-# Supabase (Transaction mode) —— 用 DB password 替换 REPLACE_ME 再 apply
+# Supabase (Transaction mode) —— 真 apply 时走 Makefile `apply-aws` target
+# 它从 .env 的 SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD 组合出真 URL 并用 `-var` 覆盖
 lambda_database_url     = "postgresql://postgres.YOUR_PROJECT_REF:YOUR_DB_PASSWORD@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
 lambda_aws_endpoint_url = null
 

@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: check-deps deps download-models up down migrate setup destroy test test-e2e build-worker build-scheduler build-get-photo-ids build-tagger build-vlm build-mark-complete build-all build-push-worker-ecr
+.PHONY: check-deps deps download-models up down migrate setup destroy test test-e2e build-worker build-scheduler build-get-photo-ids build-tagger build-vlm build-mark-complete build-all build-push-worker-ecr apply-aws destroy-aws
 
 BUFFALO_URL ?= https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
 MODELS_DIR := docker/models/buffalo_l
@@ -111,3 +111,38 @@ build-push-worker-ecr: download-models
 	docker build -f services/worker/Dockerfile -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO):latest .
 	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO):latest
 	@echo "✅ Pushed: $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO):latest"
+
+##############################################
+# AWS: apply / destroy 真 AWS 基础设施
+##############################################
+# 前置：.env 里设好 SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD / LANGFUSE_*；
+#      aws CLI 登录（aws login 或 aws configure），真凭证在 ~/.aws/credentials；
+#      本地不要污染 AWS_* / AWS_ENDPOINT_URL（env -u 清干净）
+
+_AWS_APPLY_CHECK := \
+	[ -n "$(SUPABASE_PROJECT_REF)" ] && [ -n "$(SUPABASE_DB_PASSWORD)" ] || { \
+		echo "❌ .env 里需设 SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD"; exit 1; }
+
+_DB_URL = postgresql://postgres.$(SUPABASE_PROJECT_REF):$(SUPABASE_DB_PASSWORD)@aws-1-$(AWS_REGION).pooler.supabase.com:6543/postgres?sslmode=require
+
+apply-aws:
+	@$(_AWS_APPLY_CHECK)
+	@env -u AWS_ENDPOINT_URL -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_DEFAULT_REGION \
+		bash -c 'cd terraform && tofu workspace select aws 2>/dev/null || tofu workspace new aws; \
+			tofu apply -var-file=aws.tfvars \
+			-var="lambda_database_url=$(_DB_URL)" \
+			-var="langfuse_public_key=$(LANGFUSE_PUBLIC_KEY)" \
+			-var="langfuse_secret_key=$(LANGFUSE_SECRET_KEY)" \
+			-var="langfuse_host=$(LANGFUSE_HOST)" \
+			-auto-approve'
+
+destroy-aws:
+	@$(_AWS_APPLY_CHECK)
+	@env -u AWS_ENDPOINT_URL -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_DEFAULT_REGION \
+		bash -c 'cd terraform && tofu workspace select aws && \
+			tofu destroy -var-file=aws.tfvars \
+			-var="lambda_database_url=$(_DB_URL)" \
+			-var="langfuse_public_key=$(LANGFUSE_PUBLIC_KEY)" \
+			-var="langfuse_secret_key=$(LANGFUSE_SECRET_KEY)" \
+			-var="langfuse_host=$(LANGFUSE_HOST)" \
+			-auto-approve'

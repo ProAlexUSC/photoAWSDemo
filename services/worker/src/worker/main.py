@@ -1,4 +1,3 @@
-import contextlib
 import json
 import os
 
@@ -8,6 +7,7 @@ import numpy as np
 import onnxruntime
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
+from common.tracing import kwargs_from_env, traced_handler
 from insightface.app import FaceAnalysis
 from langfuse import get_client, observe
 
@@ -76,22 +76,8 @@ def _process_batch_inner(batch_id: int, s3_keys: list[str]) -> dict:
 def process_batch():
     batch_id = int(os.environ["BATCH_ID"])
     s3_keys = json.loads(os.environ["S3_KEYS"])
-
-    # 可选：env 里带上 trace 上下文就挂到上游 trace；否则独立一条
-    kw: dict[str, str] = {}
-    tid = os.environ.get("LANGFUSE_TRACE_ID")
-    if tid:
-        kw["langfuse_trace_id"] = tid
-    pid = os.environ.get("LANGFUSE_PARENT_OBS_ID")
-    if pid:
-        kw["langfuse_parent_observation_id"] = pid
-
-    try:
-        _process_batch_inner(batch_id, s3_keys, **kw)
-    finally:
-        # Worker 是短命进程，显式 flush 防止 span 丢
-        with contextlib.suppress(Exception):
-            get_client().flush()
+    with traced_handler():
+        _process_batch_inner(batch_id, s3_keys, **kwargs_from_env())
 
 
 if __name__ == "__main__":

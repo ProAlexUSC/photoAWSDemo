@@ -1,30 +1,15 @@
-"""端到端测试（MiniStack Plan A）：走 Scheduler Lambda 的真·e2e。
+"""端到端测试（MiniStack）：S3 → Scheduler Lambda → docker run worker → SFN → DB 校验。
 
-覆盖 Scheduler→SFN 契约 + propagate_attributes(user_id/session_id/tags)。
-流程：S3 upload → Scheduler Lambda(invoke) → docker run worker
-      → stop_task 解锁 → 等 SFN 终态 → 验证 DB。
+MiniStack 两个限制需要 workaround：
+- `ecs:runTask.sync` 不真跑容器且不自动 STOPPED → 解锁：`ecs.stop_task`
+- Worker 不在 SFN 跑，`face_embeddings` 空 → 预填：`docker compose run worker`
 
-MiniStack 两处限制影响 e2e：
-1. `ecs:runTask.sync` 不真跑容器，只在 ECS 里注册一条 RUNNING task 记录；且不会自动
-   转为 STOPPED，SFN 的 `.sync` 会无限 block。workaround：Scheduler 触发 SFN 后主动
-   `ecs.stop_task`，SFN 收到状态转移事件即继续。
-2. 即便解锁，Worker 容器没真跑，face_embeddings 表是空的，GetPhotoIds 拿不到 photo_id。
-   workaround：在解锁 ECS 之前，先用 `docker compose run worker` 自己把 DB 填好。
+Scheduler 的 `sfn.start_execution` 是异步的，返回后 SFN 在后台 hang 在 RunWorker；
+这段时间本脚本 `docker compose run worker` 填数据（~40-60s），之后 stop_task 解锁，
+SFN 继续 GetPhotoIds → Tag/VLM Map → MarkComplete。
 
-时序安排上两者兼容：Scheduler 内部 `sfn.start_execution` 是异步返回 executionArn，SFN 后台
-开始 RunWorker 即刻 hang 在 .sync；这段时间 Python 脚本 `docker compose run worker`
-populate 真数据（~40-60s），之后 stop_task 解锁，SFN 继续推进到 GetPhotoIds，拿到真
-photo_id 完成后续 Tag/VLM/MarkComplete。
-
-Trace 说明：Scheduler `@observe(name="photo_pipeline")` 是 trace root；Worker 这次拿不到
-parent_obs_id（Scheduler handler 未把 observation_id 返回给 invoke 调用方），Worker span
-作为 trace 顶层 sibling 出现，不嵌套在 photo_pipeline 下面。这是可接受的 trade-off——
-Codex adversarial review finding #3 的核心是"e2e 走真实 Scheduler"，已达成；
-propagate_attributes(user_id, session_id, tags) 和 Scheduler→SFN 契约都在 e2e 覆盖下了。
-
-覆盖：Scheduler→SFN 契约、propagate_attributes、SFN JSON 结构、Map 并发、
-     ResultPath/ResultSelector、Lambda event 契约、DB 写入。
-不覆盖：RunWorker 的 ECS 参数传递（留给真 AWS Batch smoke 另起独立验证）。
+Worker span 不嵌套在 photo_pipeline 下（Scheduler 未把 observation_id 透给调用方），
+只共享 trace_id 作为同 trace 的顶层 sibling。
 """
 
 import json
@@ -120,9 +105,9 @@ def main():
         print("❌ No test fixtures found", file=sys.stderr)
         sys.exit(1)
 
-    # 2. 调 Scheduler Lambda —— 覆盖 Scheduler→SFN 契约 + propagate_attributes
+    # 2. 调 Scheduler Lambda
     request_id = f"e2e-test-{int(time.time())}"
-    user_id = 1  # batch_manager 侧 user_id 是 int；Scheduler 会把它 str() 后挂到 trace attributes
+    user_id = 1
     print(f"\n🚀 Invoking Scheduler Lambda ({SCHEDULER_FUNCTION})...")
     invoke_resp = lam.invoke(
         FunctionName=SCHEDULER_FUNCTION,
@@ -153,27 +138,12 @@ def main():
     if trace_id:
         print(f"🔭 Langfuse trace_id: {trace_id}")
 
-    # 3. Worker populate DB —— 和 SFN 的 RunWorker.sync hang 并行进行
-    # NOTE: LANGFUSE_PARENT_OBS_ID 这次不传（Scheduler handler 没把 observation_id 透给
-    # 外部 invoke 调用方），Worker span 会作为 trace 顶层 sibling 出现而不是 nested child。
-    # 传 LANGFUSE_TRACE_ID 保证 Worker span 至少挂到同一个 trace 上。
     print("\n🔧 Worker — face detection + embeddings (docker compose run)...")
+    worker_env = ["-e", f"BATCH_ID={batch_id}", "-e", f"S3_KEYS={json.dumps(s3_keys)}"]
+    if trace_id:
+        worker_env += ["-e", f"LANGFUSE_TRACE_ID={trace_id}"]
     r = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "run",
-            "--rm",
-            "-e",
-            f"BATCH_ID={batch_id}",
-            "-e",
-            f"S3_KEYS={json.dumps(s3_keys)}",
-            "-e",
-            f"LANGFUSE_TRACE_ID={trace_id}",
-            "-e",
-            "LANGFUSE_PARENT_OBS_ID=",
-            "worker",
-        ],
+        ["docker", "compose", "run", "--rm", *worker_env, "worker"],
         capture_output=True,
         text=True,
     )

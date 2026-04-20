@@ -44,16 +44,12 @@ rm "$TMPDIR/requirements.txt"
 cp -r "${ROOT_DIR}/services/${SERVICE_NAME}/src/"* "$TMPDIR/"
 cp -r "${ROOT_DIR}/packages/common/src/"* "$TMPDIR/"
 
-# 5. 清理减小 zip —— 多条最佳实践：
-#    - __pycache__：跨架构可能不兼容（AWS 文档明确建议排除）
-#    - *.dist-info：包元数据，运行时不用
-#    - tests/：包测试目录，生产不用
-#    - boto3/botocore：Lambda runtime 已自带（省 ~20MB；可能版本略异，若遇兼容问题再加回）
-#    - *.so 的 debug 符号太大时可 strip（暂不做，避免二进制风险）
-find "$TMPDIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-# NOTE: 保留 *.dist-info！opentelemetry / langfuse 靠 entry_points 插件发现，
-# 删 dist-info 会让 runtime 抛 StopIteration
-find "$TMPDIR" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+# 5. 清理 —— 合并一次 find pass
+#   - __pycache__：跨架构可能不兼容（AWS 文档建议排除）
+#   - tests/：生产不用
+#   - 保留 *.dist-info：opentelemetry/langfuse 靠 entry_points 插件发现，删了 runtime 会 StopIteration
+#   - 单独 rm boto3/botocore：Lambda runtime 自带（省 ~20MB；若遇版本兼容问题加回）
+find "$TMPDIR" -type d \( -name "__pycache__" -o -name "tests" \) -prune -exec rm -rf {} + 2>/dev/null || true
 rm -rf "$TMPDIR/boto3" "$TMPDIR/botocore" 2>/dev/null || true
 
 cd "$TMPDIR"
