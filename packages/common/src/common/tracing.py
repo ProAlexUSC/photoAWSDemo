@@ -13,6 +13,7 @@ Langfuse span ↔ AWS 控制台双向跳转。
 
 import contextlib
 import contextvars
+import inspect
 import os
 from contextlib import contextmanager
 
@@ -122,12 +123,33 @@ def lambda_context_scope(context):
         _lambda_context_var.reset(token)
 
 
+def _bind_business_kwargs(fn, args: tuple, kwargs: dict) -> dict | None:
+    """把业务参数绑定成命名 kwargs，避免 @observe 只看到匿名 args。"""
+    try:
+        signature = inspect.signature(fn)
+        bound = signature.bind_partial(*args, **kwargs)
+    except TypeError:
+        return None
+
+    if any(
+        signature.parameters[name].kind == inspect.Parameter.POSITIONAL_ONLY
+        for name in bound.arguments
+    ):
+        return None
+
+    return dict(bound.arguments)
+
+
 def run_traced(fn, event: dict, *args, lambda_context=None, **kwargs):
     """Lambda handler 标准套路：设 lambda_context → 抽 event 的 trace kwarg 注入 fn →
     退出 flush。用法：return run_traced(_fn, event, event["photo_id"], lambda_context=context)"""
     token = _lambda_context_var.set(lambda_context)
     try:
         with traced_handler():
+            business_kwargs = _bind_business_kwargs(fn, args, kwargs)
+            if business_kwargs is not None:
+                return fn(**business_kwargs, **kwargs_from_event(event))
+
             return fn(*args, **kwargs, **kwargs_from_event(event))
     finally:
         _lambda_context_var.reset(token)

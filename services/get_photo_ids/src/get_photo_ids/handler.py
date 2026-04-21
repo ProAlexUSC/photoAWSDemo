@@ -42,7 +42,7 @@ def handler(event, context):
     with traced_handler(), lambda_context_scope(context):
         kw = kwargs_from_event(event)
         batch_id = event["batch_id"]
-        photo_ids = _get_photo_ids(batch_id, **kw)
+        photo_ids = _get_photo_ids(batch_id=batch_id, **kw)
 
         # langfuse 关闭或 trace context 缺失时 id 是空串，下游退化为顶层 span，不报错
         if kw.get("langfuse_trace_id") and kw.get("langfuse_parent_observation_id"):

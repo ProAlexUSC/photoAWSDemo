@@ -10,13 +10,11 @@ from langfuse import get_client, observe, propagate_attributes
 
 @observe(name="photo_pipeline")
 def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
-    client = get_client()
-    # Langfuse UI Preview tab 只渲染 trace 显式设的 input/output，
-    # observation 衍生的 fallback 值 API 有但 UI 不显示（GET /traces 的 input 字段有值，
-    # UI 照样 "undefined"）。set_current_trace_io 写 trace-native 字段让 UI 能看到。
-    client.set_current_trace_io(input={"batch_id": batch_id, "s3_keys": s3_keys})
     attach_aws_runtime_context()
-    parent_obs_id = client.get_current_observation_id() or ""
+    trace_input = {"batch_id": batch_id, "s3_keys": s3_keys, "trace_id": trace_id}
+    # @observe 只保证 observation I/O；trace 详情页要显式写 trace-native input/output。
+    get_client().set_current_trace_io(input=trace_input)
+    parent_obs_id = get_client().get_current_observation_id() or ""
 
     sfn = boto3.client("stepfunctions")
     exe = sfn.start_execution(
@@ -38,7 +36,7 @@ def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
         # Scheduler 自己的 obs_id；e2e 脚本跑 Worker docker 时作 LANGFUSE_PARENT_OBS_ID 透下去
         "langfuse_parent_observation_id": parent_obs_id,
     }
-    client.set_current_trace_io(output=result)
+    get_client().set_current_trace_io(output=result)
     return result
 
 
@@ -64,6 +62,11 @@ def handler(event, context):
             session_id=f"{env}-batch-{batch_id}",
             tags=[f"env:{env}", "photo-pipeline"],
         ):
-            result = _run(batch_id, s3_keys, trace_id, langfuse_trace_id=trace_id)
+            result = _run(
+                batch_id=batch_id,
+                s3_keys=s3_keys,
+                trace_id=trace_id,
+                langfuse_trace_id=trace_id,
+            )
 
         return {"statusCode": 200, "body": json.dumps(result)}

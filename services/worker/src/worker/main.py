@@ -86,7 +86,7 @@ def process_batch():
     batch_id = int(os.environ["BATCH_ID"])
     s3_keys = json.loads(os.environ["S3_KEYS"])
     with traced_handler():
-        _process_batch_inner(batch_id, s3_keys, **kwargs_from_env())
+        _process_batch_inner(batch_id=batch_id, s3_keys=s3_keys, **kwargs_from_env())
 
 
 if __name__ == "__main__":
