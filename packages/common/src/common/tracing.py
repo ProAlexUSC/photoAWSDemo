@@ -73,19 +73,19 @@ def _cloudwatch_log_url(region: str, log_group: str, log_stream: str) -> str:
     )
 
 
-def attach_aws_runtime_context() -> None:
-    """把 AWS runtime 元信息挂到当前 span metadata。自动识别 Lambda / Batch / 本地：
+def attach_aws_runtime_context(extra: dict | None = None) -> None:
+    """挂 AWS runtime 元信息 + 业务自定义字段到当前 span metadata。自动识别 runtime：
+    Lambda (AWS_LAMBDA_LOG_GROUP_NAME) / Batch (AWS_BATCH_JOB_ID) / 本地（都缺 → 只填 app.env）。
 
-    - Lambda（AWS_LAMBDA_LOG_GROUP_NAME 存在）：aws.function + log_group/stream + request_id
-      + CloudWatch 直跳 URL；aws_request_id 从 lambda_context_scope 设的 contextvar 读
-    - Batch（AWS_BATCH_JOB_ID 存在）：aws.batch.{job_id,job_attempt,jq_name,ce_name}
-      + Batch 控制台 job detail 直跳 URL
-    - 本地（都不存在）：只写 app.env，其他字段跳过
+    `extra` 合并进同一次 update_current_span 调用，避免 Langfuse v4 metadata replace
+    语义下"attach 在前 → 业务 update 在后把 aws.* 冲掉"的坑。
 
-    在 @observe 装饰函数内调用（或 start_as_current_observation 上下文内）。
+    用法：attach_aws_runtime_context(extra={"s3_key": s3_key, "tag_count": n})
     """
     with contextlib.suppress(Exception):
         md: dict[str, str] = {"app.env": os.environ.get("APP_ENV", "unknown")}
+        if extra:
+            md.update(extra)
         region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or ""
 
         if log_group := os.environ.get("AWS_LAMBDA_LOG_GROUP_NAME"):

@@ -21,13 +21,8 @@ def _tag_photo(photo_id):
     finally:
         conn.close()
 
-    # attach 放最后：Langfuse v4 update_current_span(metadata=) 是 replace 语义，
-    # 放前面会被业务 metadata 冲掉（vlm 侧观测到）
-    get_client().update_current_span(
-        input={"photo_id": photo_id, "s3_key": s3_key},
-        metadata={"s3_key": s3_key, "tag_count": len(tags)},
-    )
-    attach_aws_runtime_context()
+    get_client().update_current_span(input={"photo_id": photo_id, "s3_key": s3_key})
+    attach_aws_runtime_context(extra={"s3_key": s3_key, "tag_count": len(tags)})
     return {"photo_id": photo_id, "status": "tagged", "s3_key": s3_key, "tag_count": len(tags)}
 
 
