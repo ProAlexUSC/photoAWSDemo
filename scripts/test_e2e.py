@@ -131,8 +131,10 @@ def main():
     body = resp["body"] if isinstance(resp.get("body"), dict) else json.loads(resp["body"])
     batch_id = body["batch_id"]
     execution_arn = body["execution_arn"]
-    # Scheduler 返回 langfuse_trace_id 便于外部挂 child span / 展示同 trace URL
+    # Scheduler 返回 langfuse_trace_id + parent_observation_id，
+    # 前者用于展示同 trace URL，后者让 Worker span 嵌在 photo_pipeline 下
     trace_id = body.get("langfuse_trace_id", "")
+    parent_obs_id = body.get("langfuse_parent_observation_id", "")
     print(f"✅ batch_id={batch_id}")
     print(f"✅ execution_arn={execution_arn}")
     if trace_id:
@@ -142,6 +144,8 @@ def main():
     worker_env = ["-e", f"BATCH_ID={batch_id}", "-e", f"S3_KEYS={json.dumps(s3_keys)}"]
     if trace_id:
         worker_env += ["-e", f"LANGFUSE_TRACE_ID={trace_id}"]
+    if parent_obs_id:
+        worker_env += ["-e", f"LANGFUSE_PARENT_OBS_ID={parent_obs_id}"]
     r = subprocess.run(
         ["docker", "compose", "run", "--rm", *worker_env, "worker"],
         capture_output=True,

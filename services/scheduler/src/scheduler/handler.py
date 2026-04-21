@@ -4,12 +4,16 @@ import os
 import boto3
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
-from common.tracing import init_trace_id, traced_handler
+from common.tracing import attach_aws_lambda_context, init_trace_id, traced_handler
 from langfuse import get_client, observe, propagate_attributes
 
 
 @observe(name="photo_pipeline")
-def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
+def _run(batch_id: int, s3_keys: list[str], trace_id: str, env: str) -> dict:
+    # 把 root span 重命名为 {env}-batch-{id}，trace.name 会 propagate 成一样，
+    # 避开"trace 外层 + root span 内层同名 photo_pipeline"的 UI 视觉重复
+    get_client().update_current_span(name=f"{env}-batch-{batch_id}")
+    attach_aws_lambda_context()  # 挂 aws.request_id / log_url / app.env 到 root span metadata
     parent_obs_id = get_client().get_current_observation_id() or ""
 
     sfn = boto3.client("stepfunctions")
@@ -29,6 +33,9 @@ def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
         "batch_id": batch_id,
         "execution_arn": exe["executionArn"],
         "langfuse_trace_id": trace_id,
+        # 暴露 scheduler 自己的 obs_id，调用方（如 e2e 脚本跑 Worker docker）
+        # 可以透给 Worker 作 LANGFUSE_PARENT_OBS_ID，让 Worker span 嵌在 photo_pipeline 下
+        "langfuse_parent_observation_id": parent_obs_id,
     }
 
 
@@ -46,12 +53,14 @@ def handler(event, context):
         finally:
             conn.close()
 
+        # env 维度的 tag + session 前缀用于 Langfuse UI 区分本地/云端 trace
+        env = os.environ.get("APP_ENV", "unknown")
         trace_id = init_trace_id(request_id)
         with propagate_attributes(
             user_id=str(user_id),
-            session_id=f"batch-{batch_id}",
-            tags=["photo-pipeline"],
+            session_id=f"{env}-batch-{batch_id}",
+            tags=[f"env:{env}", "photo-pipeline"],
         ):
-            result = _run(batch_id, s3_keys, trace_id, langfuse_trace_id=trace_id)
+            result = _run(batch_id, s3_keys, trace_id, env, langfuse_trace_id=trace_id)
 
         return {"statusCode": 200, "body": json.dumps(result)}

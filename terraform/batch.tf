@@ -204,7 +204,7 @@ resource "aws_batch_job_definition" "worker" {
 
   container_properties = jsonencode({
     image      = var.worker_image
-    vcpus      = 4
+    vcpus      = var.worker_vcpus
     memory     = var.worker_memory
     jobRoleArn = aws_iam_role.batch_job[0].arn
 
@@ -213,6 +213,7 @@ resource "aws_batch_job_definition" "worker" {
     ] : []
 
     environment = [
+      { name = "APP_ENV", value = "aws" },
       { name = "DATABASE_URL", value = var.lambda_database_url },
       { name = "S3_BUCKET", value = var.s3_bucket_name },
       { name = "LANGFUSE_PUBLIC_KEY", value = var.langfuse_public_key },

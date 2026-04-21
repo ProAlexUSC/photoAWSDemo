@@ -1,11 +1,12 @@
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
-from common.tracing import run_traced
+from common.tracing import attach_aws_lambda_context, run_traced
 from langfuse import observe
 
 
 @observe(name="mark_complete")
 def _mark_complete(batch_id):
+    attach_aws_lambda_context()
     conn = get_connection()
     try:
         mgr = PgBatchManager(conn)
@@ -17,4 +18,4 @@ def _mark_complete(batch_id):
 
 
 def handler(event, context):
-    return run_traced(_mark_complete, event, event["batch_id"])
+    return run_traced(_mark_complete, event, event["batch_id"], lambda_context=context)

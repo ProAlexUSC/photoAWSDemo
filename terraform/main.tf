@@ -48,6 +48,8 @@ locals {
   lambda_env = merge(
     {
       LOCAL_DEV           = local.is_local ? "true" : "false"
+      # Langfuse trace tag + session prefix 用这个字段区分本地/云端 trace
+      APP_ENV             = local.is_local ? "local" : "aws"
       DATABASE_URL        = var.lambda_database_url
       STATE_MACHINE_ARN   = local.sfn_arn
       LANGFUSE_PUBLIC_KEY = var.langfuse_public_key

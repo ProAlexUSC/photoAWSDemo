@@ -1,7 +1,10 @@
 data "external" "lambda_zip" {
   for_each = local.lambdas
 
-  program = ["bash", "${path.module}/build_lambda_zip.sh", each.value.service]
+  # 本地 MiniStack (Apple Silicon ARM) 的 Warm Worker 预装了 psycopg2-binary/boto3/langfuse；
+  # 不要把 x86 wheel 打进 zip 污染 sys.path，否则 Lambda 起不来。
+  # AWS Lambda runtime 无这些依赖，必须打进 zip（即 target=aws）。
+  program = ["bash", "${path.module}/build_lambda_zip.sh", each.value.service, local.is_local ? "local" : "aws"]
 }
 
 resource "aws_iam_role" "lambda" {

@@ -63,6 +63,12 @@ variable "worker_memory" {
   default = 2048
 }
 
+variable "worker_vcpus" {
+  description = "Batch Worker 容器 vCPU 数；free-tier 账号最大 2"
+  type        = number
+  default     = 4
+}
+
 variable "langfuse_public_key" {
   description = "Langfuse public key (pk-lf-...); 留空则 Lambda 侧 Langfuse no-op"
   type        = string

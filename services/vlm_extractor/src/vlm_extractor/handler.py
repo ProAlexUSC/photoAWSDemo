@@ -1,7 +1,7 @@
 import json
 
 from common.db import get_connection
-from common.tracing import run_traced
+from common.tracing import attach_aws_lambda_context, run_traced
 from langfuse import get_client, observe
 
 
@@ -25,12 +25,15 @@ def _vlm_extract(photo_id):
     finally:
         conn.close()
 
+    # attach 放最后：Langfuse v4 的 update_current_span(metadata=...) 实际是 replace 语义，
+    # 若 attach 在前，业务侧后续 update 会把 aws.* / app.env 冲掉 (观测到 vlm 丢 AWS 字段)
     get_client().update_current_span(
         input={"photo_id": photo_id, "s3_key": s3_key},
         metadata={"s3_key": s3_key},
     )
+    attach_aws_lambda_context()
     return {"photo_id": photo_id, "status": "extracted", "s3_key": s3_key}
 
 
 def handler(event, context):
-    return run_traced(_vlm_extract, event, event["photo_id"])
+    return run_traced(_vlm_extract, event, event["photo_id"], lambda_context=context)

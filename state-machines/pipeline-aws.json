@@ -36,7 +36,9 @@
       },
       "ResultSelector": {
         "batch_id.$": "$.Payload.batch_id",
-        "photo_ids.$": "$.Payload.photo_ids"
+        "photo_ids.$": "$.Payload.photo_ids",
+        "tag_parent_id.$": "$.Payload.tag_parent_id",
+        "vlm_parent_id.$": "$.Payload.vlm_parent_id"
       },
       "ResultPath": "$",
       "Next": "TagPhotos"
@@ -45,6 +47,10 @@
       "Type": "Map",
       "ItemsPath": "$.photo_ids",
       "MaxConcurrency": 10,
+      "ItemSelector": {
+        "photo_id.$": "$$.Map.Item.Value",
+        "tag_parent_id.$": "$.tag_parent_id"
+      },
       "ItemProcessor": {
         "ProcessorConfig": {"Mode": "INLINE"},
         "StartAt": "TagOnePhoto",
@@ -55,9 +61,9 @@
             "Parameters": {
               "FunctionName": "photo-tagger",
               "Payload": {
-                "photo_id.$": "$",
+                "photo_id.$": "$.photo_id",
                 "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
-                "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
+                "langfuse_parent_observation_id.$": "$.tag_parent_id"
               }
             },
             "ResultSelector": {
@@ -74,6 +80,10 @@
       "Type": "Map",
       "ItemsPath": "$.photo_ids",
       "MaxConcurrency": 10,
+      "ItemSelector": {
+        "photo_id.$": "$$.Map.Item.Value",
+        "vlm_parent_id.$": "$.vlm_parent_id"
+      },
       "ItemProcessor": {
         "ProcessorConfig": {"Mode": "INLINE"},
         "StartAt": "ExtractOnePhoto",
@@ -84,9 +94,9 @@
             "Parameters": {
               "FunctionName": "photo-vlm",
               "Payload": {
-                "photo_id.$": "$",
+                "photo_id.$": "$.photo_id",
                 "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
-                "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
+                "langfuse_parent_observation_id.$": "$.vlm_parent_id"
               }
             },
             "ResultSelector": {

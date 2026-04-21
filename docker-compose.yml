@@ -23,6 +23,9 @@ services:
       context: .
       dockerfile: services/worker/Dockerfile
     environment:
+      # APP_ENV=local → Worker span metadata / trace tag 区分本地 vs AWS Batch
+      - APP_ENV=local
+      - S3_BUCKET=photo-uploads
       - DATABASE_URL=postgresql://dev:dev@postgres:5432/photo_pipeline
       - AWS_ENDPOINT_URL=http://ministack:4566
       - AWS_ACCESS_KEY_ID=test
