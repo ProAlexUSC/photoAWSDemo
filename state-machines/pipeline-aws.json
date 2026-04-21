@@ -12,7 +12,9 @@
         "ContainerOverrides": {
           "Environment": [
             {"Name": "BATCH_ID", "Value.$": "States.Format('{}', $.batch_id)"},
-            {"Name": "S3_KEYS", "Value.$": "States.JsonToString($.s3_keys)"}
+            {"Name": "S3_KEYS", "Value.$": "States.JsonToString($.s3_keys)"},
+            {"Name": "LANGFUSE_TRACE_ID", "Value.$": "$.langfuse_trace_id"},
+            {"Name": "LANGFUSE_PARENT_OBS_ID", "Value.$": "$.langfuse_parent_observation_id"}
           ]
         }
       },
@@ -27,7 +29,9 @@
       "Parameters": {
         "FunctionName": "get-photo-ids",
         "Payload": {
-          "batch_id.$": "$.batch_id"
+          "batch_id.$": "$.batch_id",
+          "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
+          "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
         }
       },
       "ResultSelector": {
@@ -51,7 +55,9 @@
             "Parameters": {
               "FunctionName": "photo-tagger",
               "Payload": {
-                "photo_id.$": "$"
+                "photo_id.$": "$",
+                "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
+                "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
               }
             },
             "ResultSelector": {
@@ -78,7 +84,9 @@
             "Parameters": {
               "FunctionName": "photo-vlm",
               "Payload": {
-                "photo_id.$": "$"
+                "photo_id.$": "$",
+                "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
+                "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
               }
             },
             "ResultSelector": {
@@ -97,7 +105,9 @@
       "Parameters": {
         "FunctionName": "photo-mark-complete",
         "Payload": {
-          "batch_id.$": "$.batch_id"
+          "batch_id.$": "$.batch_id",
+          "langfuse_trace_id.$": "$$.Execution.Input.langfuse_trace_id",
+          "langfuse_parent_observation_id.$": "$$.Execution.Input.langfuse_parent_observation_id"
         }
       },
       "End": true

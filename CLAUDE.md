@@ -12,22 +12,30 @@
 - PostgreSQL + pgvector（人脸 embedding 存储）
 - InsightFace buffalo_l（人脸检测 + 512 维 embedding）
 - Step Functions（Pipeline 编排）
-- LangSmith `@traceable`（全 Pipeline 分布式 trace 串联）
+- Langfuse v4 SDK `@observe`（全 Pipeline 分布式 trace 串联 + 真·父子嵌套）
 - X-Ray（AWS Lambda 基础可观测，零代码）
 
 ## 常用命令
 
 ```bash
-make setup        # Docker Compose + migrate + build images + tofu apply
-make test         # pytest（19 个单元测试）
-make test-e2e     # 6 步端到端测试（需先 make setup）
-make destroy      # tofu destroy + docker compose down -v
-make up           # 只启动 Docker Compose
-make down         # 只停止 Docker Compose
-make migrate      # 只执行数据库迁移
-make build-all    # 只构建全部 Docker 镜像
-uv run ruff check .          # lint
-uv run ruff format --check . # format check
+# 本地 MiniStack
+make check-deps       # 校验 docker/uv/dbmate/tofu + docker daemon + .env（setup 前自动跑）
+make deps             # brew 装 dbmate opentofu uv（docker 需自行装）
+make download-models  # 主机预下载 InsightFace buffalo_l ~275MB 到 docker/models/
+make setup            # check-deps + up + migrate + build-all + tofu apply(local)
+make test             # pytest 33 个单元测试
+make test-e2e         # 端到端测试（依赖 setup）
+make destroy          # tofu destroy + docker compose down -v
+make up / down / migrate / build-all  # 分步骤
+
+# 真 AWS 部署
+make build-push-worker-ecr   # Build + push Worker 镜像到 ECR（依赖 aws CLI 已登录）
+make apply-aws               # 读 .env 的 Supabase + Langfuse 凭证，tofu apply(aws workspace)
+make destroy-aws             # 真 AWS 销毁
+
+# 代码质量
+uv run ruff check .
+uv run ruff format --check .
 ```
 
 ## 项目结构
@@ -37,16 +45,20 @@ uv run ruff format --check . # format check
 - `terraform/` — IaC 配置，`local.tfvars` / `aws.tfvars` 切换环境
 - `state-machines/` — Step Functions JSON 定义（local 用 ECS，AWS 用 Batch）
 - `migrations/` — dbmate SQL 迁移（`-- migrate:up` / `-- migrate:down` 同文件）
-- `docker/ministack.Dockerfile` — 自定义 MiniStack 镜像（预装 psycopg2/boto3/langsmith）
+- `docker/ministack.Dockerfile` — 自定义 MiniStack 镜像（Alpine base，`ensurepip` 引导后装 psycopg2-binary/boto3/langfuse，走 BFSU PyPI 镜像）
+- `docker/models/buffalo_l/` — InsightFace 模型（`.gitignore` 不入库，`make download-models` 预下载）
+- `docs/superpowers/specs/` — 设计文档归档
 
-## 可观测性
+## 可观测性（Langfuse）
 
-- Scheduler `@traceable(name="photo_pipeline")` 创建 parent trace
-- 下游 Lambda 通过 `parent_trace_from(event)` 恢复 parent context，`@traceable` 创建 child span
-- trace context 通过 event payload 的 `langsmith_trace_context` 字段传播
-- 本地 Lambda `LANGSMITH_TRACING=false`（避免 MiniStack Warm Worker 重复），由 `parent_trace_from` 临时启用
-- AWS Lambda `LANGSMITH_TRACING=true`（原生生效）
-- `.env` 中设 `LANGSMITH_API_KEY` 即可启用，`make setup` 自动注入
+- Scheduler `@observe(name="photo_pipeline")` 作为 root span；内部 `get_client().get_current_observation_id()` 捕获自己的 span_id，随 SFN input 传给下游 Lambda
+- 分布式 trace 通过两字段传播（见 `packages/common/src/common/tracing.py`）：
+  - `langfuse_trace_id` — 确定性 trace_id，`create_trace_id(seed=request_id)` 生成
+  - `langfuse_parent_observation_id` — Scheduler 的 span_id
+- SFN JSON 每个 Lambda Task 的 `Parameters.Payload` 用 `$$.Execution.Input.xxx` 从执行原始 input 直接取这两字段（不依赖上游 state 的 ResultPath 保留）
+- 下游 Lambda `handler()` 里统一调 `run_traced(_op, event, ...)`：自动抽字段 → 用 `@observe` 的 `langfuse_trace_id` / `langfuse_parent_observation_id` kwarg 挂到同一棵树 → 退出前 `flush()` 保证不丢 span
+- `@observe` 的 `langfuse_parent_observation_id` kwarg 是 SDK 特性（源码 docstring 有，doc 页未列），让下游 span 真嵌套在 Scheduler 的 `photo_pipeline` 下而非平铺 sibling
+- 未配 Langfuse key 时 SDK no-op，零业务影响；`.env` 中设 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` 即可启用
 
 ## 开发规范
 
@@ -58,15 +70,26 @@ uv run ruff format --check . # format check
 
 ## MiniStack 已知限制
 
-- Lambda Container Image：`ImageConfig.Command` 不传给 Docker CMD → 用 Zip 部署
-- ECS RunTask.sync：返回成功但不真正执行容器 → Worker 用 `docker compose run`
-- SFN `ListStateMachineVersions` 不支持 → `sfn.tf` 本地用 `terraform_data` + 脚本创建
-- Lambda 依赖靠自定义 MiniStack 镜像预装（Warm Workers 机制）
-- `LANGSMITH_TRACING=true` 会导致 Warm Worker 重复 root trace → 本地设 `false`，由 `parent_trace_from` 按需启用
+- **Lambda Container Image**：`ImageConfig.Command` 不传给 Docker CMD → 用 Zip 部署
+- **ECS RunTask.sync 会 hang**：只在 ECS 里注册一条 RUNNING task 记录，不真跑容器且不会自动转 STOPPED → e2e 脚本 `start_execution` 后主动 `ecs.stop_task` 解锁（`scripts/test_e2e.py:_unlock_ministack_ecs`）；数据靠预跑 `docker compose run worker` 填 DB
+- **SFN Activity runtime 不调度**：`create_activity` / `send_task_success` 等 CRUD API 可用，但 state machine 用 Activity Resource 时 `get_activity_task` 永远返回空 token（SFN 不把任务入队）→ 本地不用 Activity 模式
+- **SFN `ListStateMachineVersions` 不支持** → `sfn.tf` 本地用 `terraform_data` + `create_sfn.sh` 脚本创建
+- **Lambda Warm Workers 依赖**：psycopg2/boto3/langfuse 靠自定义 MiniStack 镜像预装
 
 ## 环境配置
 
-- `.env` 基于 `.env.example`（AWS_ENDPOINT_URL、DATABASE_URL、LANGSMITH_API_KEY 等）
-- Makefile 通过 `include .env` + `export` 自动加载
-- `make setup` 会将 `LANGSMITH_API_KEY` 通过 `-var` 传给 Terraform
+- `.env` 基于 `.env.example`（AWS_ENDPOINT_URL、DATABASE_URL、LANGFUSE_*、SUPABASE_* 等）
+- Makefile 用 `-include .env` + `export` 加载；若缺失，`check-deps` 自动 `cp .env.example .env`
+- **secret 不入 tfvars**：`make setup` / `make apply-aws` 用 `-var` 从 `.env` 组合传给 Terraform 注入 Lambda env
+- **AWS 部署**：`make apply-aws` 用 `env -u` 清掉 `.env` 的 MiniStack 污染（AWS_ENDPOINT_URL/test keys），避免真 AWS CLI 走到 localhost:4566
+- Terraform 用 workspace 隔离：`default` = local MiniStack，`aws` = 真 AWS
 - e2e 测试需要 Docker 运行（MiniStack + PostgreSQL + Worker 容器）
+
+## 国内镜像配置
+
+为规避跨境网络抖动，默认配置了以下镜像（所有都写死在 Dockerfile / uv.lock，不需额外 env）：
+
+- **Debian apt**（worker 镜像）：`deb.debian.org` → `mirrors.tuna.tsinghua.edu.cn`
+- **PyPI**（ministack 镜像 + uv.lock）：`mirrors.bfsu.edu.cn/pypi/web/simple`
+- **InsightFace buffalo_l 模型**：从 GitHub releases 预下载到 `docker/models/buffalo_l/`（主机一次性 ~275MB），由 `COPY` 进镜像；rebuild 时 Docker layer cache 秒复用
+- **`public.ecr.aws`**（Lambda base image）：直连，国内 TLS 偶发 timeout；重试即可

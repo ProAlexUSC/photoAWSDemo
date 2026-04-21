@@ -1,0 +1,16 @@
+# 默认排除，各 Dockerfile 按需 COPY（worker 会显式 COPY docker/models/）
+.git
+.github
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.claude/
+.agents/
+dist/
+build/
+terraform/.terraform/
+terraform/.build/
+docs/
+tests/

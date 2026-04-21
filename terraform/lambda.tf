@@ -23,6 +23,22 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Scheduler Lambda 需要调 SFN start_execution；其他 Lambda 不需要但共用 role，许可宽一点
+resource "aws_iam_role_policy" "lambda_sfn" {
+  count = local.is_local ? 0 : 1
+  name  = "${aws_iam_role.lambda.name}-sfn"
+  role  = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["states:StartExecution", "states:DescribeExecution"]
+      Resource = "arn:aws:states:*:*:stateMachine:photo-pipeline"
+    }]
+  })
+}
+
 resource "aws_lambda_function" "services" {
   for_each = local.lambdas
 

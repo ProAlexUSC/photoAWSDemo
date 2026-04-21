@@ -28,6 +28,10 @@ services:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_DEFAULT_REGION=us-east-1
+      # Langfuse：密钥从主机 .env 透传；TRACE_ID / PARENT_OBS_ID 由 test_e2e.py -e 传入
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-}
     depends_on:
       - postgres
       - ministack

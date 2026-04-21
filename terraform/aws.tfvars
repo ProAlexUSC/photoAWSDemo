@@ -1,11 +1,12 @@
 environment = "aws"
-aws_region  = "us-east-1"
+aws_region  = "us-west-1"
 
 # 真 AWS — 不设 endpoint override
 aws_endpoint_url = null
 
-# Supabase (Transaction mode)
-lambda_database_url     = "postgresql://postgres.xxx:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# Supabase (Transaction mode) —— 真 apply 时走 Makefile `apply-aws` target
+# 它从 .env 的 SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD 组合出真 URL 并用 `-var` 覆盖
+lambda_database_url     = "postgresql://postgres.YOUR_PROJECT_REF:YOUR_DB_PASSWORD@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
 lambda_aws_endpoint_url = null
 
 # AWS Lambda Container Image（后续实现）
@@ -14,9 +15,17 @@ lambda_aws_endpoint_url = null
 # 暂时用 Zip
 lambda_runtime = "python3.12"
 
-# Worker — ECR image
-worker_image  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/photo-worker:latest"
+# Worker — ECR image（已在 us-west-1 账号 961227453053 下）
+worker_image  = "961227453053.dkr.ecr.us-west-1.amazonaws.com/photo-worker:latest"
 worker_memory = 4096
 
 # 状态机
 sfn_definition_file = "pipeline-aws.json"
+
+# S3 bucket 名（全球唯一，加 account+region 避免冲突）
+s3_bucket_name = "photo-uploads-961227453053-us-west-1"
+
+# AWS Batch（GPU EC2，空闲缩 0 省钱）
+batch_min_vcpus      = 0
+batch_max_vcpus      = 16
+batch_instance_types = ["g4dn.xlarge"]

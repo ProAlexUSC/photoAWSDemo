@@ -10,19 +10,21 @@ terraform {
 }
 
 provider "aws" {
-  region     = var.aws_region
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
+  region = var.aws_region
+
+  # 仅本地 MiniStack 用硬编码 key/secret；真 AWS 留空由 SDK 走 credential chain（env / ~/.aws/credentials / IAM role）
+  access_key = var.aws_endpoint_url != null ? var.aws_access_key : null
+  secret_key = var.aws_endpoint_url != null ? var.aws_secret_key : null
 
   dynamic "endpoints" {
     for_each = var.aws_endpoint_url != null ? [1] : []
     content {
-      s3             = var.aws_endpoint_url
-      sqs            = var.aws_endpoint_url
-      lambda         = var.aws_endpoint_url
-      ecs            = var.aws_endpoint_url
-      iam            = var.aws_endpoint_url
-      stepfunctions  = var.aws_endpoint_url
+      s3            = var.aws_endpoint_url
+      sqs           = var.aws_endpoint_url
+      lambda        = var.aws_endpoint_url
+      ecs           = var.aws_endpoint_url
+      iam           = var.aws_endpoint_url
+      stepfunctions = var.aws_endpoint_url
     }
   }
 
@@ -45,13 +47,12 @@ locals {
 
   lambda_env = merge(
     {
-      LOCAL_DEV                      = local.is_local ? "true" : "false"
-      DATABASE_URL                   = var.lambda_database_url
-      STATE_MACHINE_ARN              = local.sfn_arn
-      LANGSMITH_API_KEY              = var.langsmith_api_key
-      LANGSMITH_PROJECT              = var.langsmith_project
-      LANGSMITH_TRACING              = local.is_local ? "false" : (var.langsmith_api_key != "" ? "true" : "false")
-      LANGCHAIN_CALLBACKS_BACKGROUND = "false"
+      LOCAL_DEV           = local.is_local ? "true" : "false"
+      DATABASE_URL        = var.lambda_database_url
+      STATE_MACHINE_ARN   = local.sfn_arn
+      LANGFUSE_PUBLIC_KEY = var.langfuse_public_key
+      LANGFUSE_SECRET_KEY = var.langfuse_secret_key
+      LANGFUSE_HOST       = var.langfuse_host
     },
     local.is_local ? {
       AWS_ENDPOINT_URL      = var.lambda_aws_endpoint_url

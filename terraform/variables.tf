@@ -63,20 +63,56 @@ variable "worker_memory" {
   default = 2048
 }
 
-variable "langsmith_api_key" {
-  description = "LangSmith API key (optional)"
+variable "langfuse_public_key" {
+  description = "Langfuse public key (pk-lf-...); 留空则 Lambda 侧 Langfuse no-op"
   type        = string
   default     = ""
   sensitive   = true
 }
 
-variable "langsmith_project" {
-  type    = string
-  default = "photo-pipeline"
+variable "langfuse_secret_key" {
+  description = "Langfuse secret key (sk-lf-...)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "langfuse_host" {
+  description = "Langfuse host, e.g. https://us.cloud.langfuse.com"
+  type        = string
+  default     = "https://us.cloud.langfuse.com"
 }
 
 variable "sfn_definition_file" {
   description = "Path to Step Functions state machine JSON"
   type        = string
   default     = "pipeline-local.json"
+}
+
+##############################################
+# AWS Batch (仅 AWS 路径使用)
+##############################################
+
+variable "batch_min_vcpus" {
+  description = "Batch CE 最小 vCPU；设 0 空闲时缩到 0 省钱"
+  type        = number
+  default     = 0
+}
+
+variable "batch_max_vcpus" {
+  description = "Batch CE 最大 vCPU"
+  type        = number
+  default     = 16
+}
+
+variable "batch_instance_types" {
+  description = "Batch CE 可用机型（GPU 默认 g4dn.xlarge；CPU 时换 c5.xlarge）"
+  type        = list(string)
+  default     = ["g4dn.xlarge"]
+}
+
+variable "batch_use_gpu" {
+  description = "Batch Worker 是否申请 GPU 资源（false 时走纯 CPU，绕 GPU 配额）"
+  type        = bool
+  default     = true
 }
