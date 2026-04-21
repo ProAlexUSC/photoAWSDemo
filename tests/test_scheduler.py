@@ -1,5 +1,6 @@
 import json
 import os
+from contextlib import nullcontext
 from importlib import reload
 from unittest import mock
 
@@ -37,6 +38,7 @@ def test_handler_creates_batch_and_starts_execution():
         mock.patch.object(mod, "PgBatchManager") as MockManager,
         mock.patch.object(mod, "get_connection") as mock_conn,
         mock.patch.object(mod, "boto3") as mock_boto,
+        mock.patch.object(mod, "propagate_attributes", return_value=nullcontext()) as mock_prop,
     ):
         instance = MockManager.return_value
         instance.create_batch.return_value = 42
@@ -71,3 +73,9 @@ def test_handler_creates_batch_and_starts_execution():
         assert isinstance(payload["langfuse_trace_id"], str)
         assert "langfuse_parent_observation_id" in payload
         assert isinstance(payload["langfuse_parent_observation_id"], str)
+        mock_prop.assert_called_once_with(
+            user_id="1",
+            session_id="unknown-batch-42",
+            tags=["env:unknown", "photo-pipeline"],
+            trace_name="photo_pipeline",
+        )

@@ -10,11 +10,14 @@ from langfuse import get_client, observe, propagate_attributes
 
 @observe(name="photo_pipeline")
 def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
+    client = get_client()
+    # 覆盖 @observe 自动抓成 {"args": [], "kwargs": {...}} 的形状，让单个 span
+    # Preview 显示扁平 dict（UI 点进 span 就能看到 batch_id / s3_keys）。
+    # 注：UI 外层 trace Preview 的 Input/Output 是 Langfuse v4 platform bug，
+    # 我们试遍 set_trace_io / set_current_trace_io / trace_context 都救不了。
+    client.update_current_span(input={"batch_id": batch_id, "s3_keys": s3_keys})
     attach_aws_runtime_context()
-    trace_input = {"batch_id": batch_id, "s3_keys": s3_keys, "trace_id": trace_id}
-    # @observe 只保证 observation I/O；trace 详情页要显式写 trace-native input/output。
-    get_client().set_current_trace_io(input=trace_input)
-    parent_obs_id = get_client().get_current_observation_id() or ""
+    parent_obs_id = client.get_current_observation_id() or ""
 
     sfn = boto3.client("stepfunctions")
     exe = sfn.start_execution(
@@ -36,7 +39,7 @@ def _run(batch_id: int, s3_keys: list[str], trace_id: str) -> dict:
         # Scheduler 自己的 obs_id；e2e 脚本跑 Worker docker 时作 LANGFUSE_PARENT_OBS_ID 透下去
         "langfuse_parent_observation_id": parent_obs_id,
     }
-    get_client().set_current_trace_io(output=result)
+    client.update_current_span(output=result)
     return result
 
 
@@ -62,11 +65,6 @@ def handler(event, context):
             session_id=f"{env}-batch-{batch_id}",
             tags=[f"env:{env}", "photo-pipeline"],
         ):
-            result = _run(
-                batch_id=batch_id,
-                s3_keys=s3_keys,
-                trace_id=trace_id,
-                langfuse_trace_id=trace_id,
-            )
+            result = _run(batch_id, s3_keys, trace_id, langfuse_trace_id=trace_id)
 
         return {"statusCode": 200, "body": json.dumps(result)}

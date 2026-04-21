@@ -25,9 +25,10 @@ def _vlm_extract(photo_id):
     finally:
         conn.close()
 
-    get_client().update_current_span(input={"photo_id": photo_id, "s3_key": s3_key})
+    result = {"photo_id": photo_id, "status": "extracted", "s3_key": s3_key}
+    get_client().update_current_span(input={"photo_id": photo_id, "s3_key": s3_key}, output=result)
     attach_aws_runtime_context(extra={"s3_key": s3_key})
-    return {"photo_id": photo_id, "status": "extracted", "s3_key": s3_key}
+    return result
 
 
 def handler(event, context):

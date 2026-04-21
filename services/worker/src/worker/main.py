@@ -35,6 +35,7 @@ def _process_batch_inner(batch_id: int, s3_keys: list[str]) -> dict:
     # bucket 走 env 以适配 AWS（photo-uploads-<acct>-<region>）和本地 MiniStack（photo-uploads）
     s3_bucket = os.environ.get("S3_BUCKET", "photo-uploads")
     lf = get_client()
+    lf.update_current_span(input={"batch_id": batch_id, "s3_keys": s3_keys})
     s3 = boto3.client("s3")
     model = _load_model()
 
@@ -79,7 +80,9 @@ def _process_batch_inner(batch_id: int, s3_keys: list[str]) -> dict:
     finally:
         conn.close()
 
-    return {"photos": len(s3_keys), "total_faces": total_faces}
+    result = {"photos": len(s3_keys), "total_faces": total_faces}
+    lf.update_current_span(output=result)
+    return result
 
 
 def process_batch():

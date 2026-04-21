@@ -21,6 +21,7 @@ def _get_photo_ids(batch_id):
         photo_ids = [row[0] for row in cur.fetchall()]
     finally:
         conn.close()
+    get_client().update_current_span(input={"batch_id": batch_id}, output={"photo_ids": photo_ids})
     return photo_ids
 
 
