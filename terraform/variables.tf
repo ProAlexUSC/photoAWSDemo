@@ -106,7 +106,13 @@ variable "batch_max_vcpus" {
 }
 
 variable "batch_instance_types" {
-  description = "Batch CE 可用机型（GPU）"
+  description = "Batch CE 可用机型（GPU 默认 g4dn.xlarge；CPU 时换 c5.xlarge）"
   type        = list(string)
   default     = ["g4dn.xlarge"]
+}
+
+variable "batch_use_gpu" {
+  description = "Batch Worker 是否申请 GPU 资源（false 时走纯 CPU，绕 GPU 配额）"
+  type        = bool
+  default     = true
 }

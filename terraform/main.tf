@@ -19,12 +19,12 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.aws_endpoint_url != null ? [1] : []
     content {
-      s3             = var.aws_endpoint_url
-      sqs            = var.aws_endpoint_url
-      lambda         = var.aws_endpoint_url
-      ecs            = var.aws_endpoint_url
-      iam            = var.aws_endpoint_url
-      stepfunctions  = var.aws_endpoint_url
+      s3            = var.aws_endpoint_url
+      sqs           = var.aws_endpoint_url
+      lambda        = var.aws_endpoint_url
+      ecs           = var.aws_endpoint_url
+      iam           = var.aws_endpoint_url
+      stepfunctions = var.aws_endpoint_url
     }
   }
 
@@ -47,12 +47,12 @@ locals {
 
   lambda_env = merge(
     {
-      LOCAL_DEV            = local.is_local ? "true" : "false"
-      DATABASE_URL         = var.lambda_database_url
-      STATE_MACHINE_ARN    = local.sfn_arn
-      LANGFUSE_PUBLIC_KEY  = var.langfuse_public_key
-      LANGFUSE_SECRET_KEY  = var.langfuse_secret_key
-      LANGFUSE_HOST        = var.langfuse_host
+      LOCAL_DEV           = local.is_local ? "true" : "false"
+      DATABASE_URL        = var.lambda_database_url
+      STATE_MACHINE_ARN   = local.sfn_arn
+      LANGFUSE_PUBLIC_KEY = var.langfuse_public_key
+      LANGFUSE_SECRET_KEY = var.langfuse_secret_key
+      LANGFUSE_HOST       = var.langfuse_host
     },
     local.is_local ? {
       AWS_ENDPOINT_URL      = var.lambda_aws_endpoint_url

@@ -208,9 +208,9 @@ resource "aws_batch_job_definition" "worker" {
     memory     = var.worker_memory
     jobRoleArn = aws_iam_role.batch_job[0].arn
 
-    resourceRequirements = [
+    resourceRequirements = var.batch_use_gpu ? [
       { type = "GPU", value = "1" }
-    ]
+    ] : []
 
     environment = [
       { name = "DATABASE_URL", value = var.lambda_database_url },

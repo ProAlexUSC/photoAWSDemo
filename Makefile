@@ -125,6 +125,14 @@ _AWS_APPLY_CHECK := \
 
 _DB_URL = postgresql://postgres.$(SUPABASE_PROJECT_REF):$(SUPABASE_DB_PASSWORD)@aws-1-$(AWS_REGION).pooler.supabase.com:6543/postgres?sslmode=require
 
+# USE_GPU=0 切 CPU（绕 GPU 配额审批）；默认 1 用 g4dn.xlarge
+USE_GPU ?= 1
+ifeq ($(USE_GPU),0)
+  _BATCH_VARS = -var="batch_use_gpu=false" -var='batch_instance_types=["c5.xlarge"]'
+else
+  _BATCH_VARS =
+endif
+
 apply-aws:
 	@$(_AWS_APPLY_CHECK)
 	@env -u AWS_ENDPOINT_URL -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_DEFAULT_REGION \
@@ -134,6 +142,7 @@ apply-aws:
 			-var="langfuse_public_key=$(LANGFUSE_PUBLIC_KEY)" \
 			-var="langfuse_secret_key=$(LANGFUSE_SECRET_KEY)" \
 			-var="langfuse_host=$(LANGFUSE_HOST)" \
+			$(_BATCH_VARS) \
 			-auto-approve'
 
 destroy-aws:
@@ -145,4 +154,5 @@ destroy-aws:
 			-var="langfuse_public_key=$(LANGFUSE_PUBLIC_KEY)" \
 			-var="langfuse_secret_key=$(LANGFUSE_SECRET_KEY)" \
 			-var="langfuse_host=$(LANGFUSE_HOST)" \
+			$(_BATCH_VARS) \
 			-auto-approve'
