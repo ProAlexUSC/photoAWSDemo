@@ -1,6 +1,6 @@
 from common.db import get_connection
 from common.tracing import (
-    attach_aws_lambda_context,
+    attach_aws_runtime_context,
     kwargs_from_event,
     lambda_context_scope,
     traced_handler,
@@ -10,7 +10,7 @@ from langfuse import get_client, observe
 
 @observe(name="get_photo_ids")
 def _get_photo_ids(batch_id):
-    attach_aws_lambda_context()
+    attach_aws_runtime_context()
     conn = get_connection()
     try:
         cur = conn.cursor()

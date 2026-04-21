@@ -1,7 +1,7 @@
 import json
 
 from common.db import get_connection
-from common.tracing import attach_aws_lambda_context, run_traced
+from common.tracing import attach_aws_runtime_context, run_traced
 from langfuse import get_client, observe
 
 
@@ -31,7 +31,7 @@ def _vlm_extract(photo_id):
         input={"photo_id": photo_id, "s3_key": s3_key},
         metadata={"s3_key": s3_key},
     )
-    attach_aws_lambda_context()
+    attach_aws_runtime_context()
     return {"photo_id": photo_id, "status": "extracted", "s3_key": s3_key}
 
 

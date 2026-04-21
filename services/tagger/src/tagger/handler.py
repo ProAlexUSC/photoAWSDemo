@@ -1,7 +1,7 @@
 import json
 
 from common.db import get_connection
-from common.tracing import attach_aws_lambda_context, run_traced
+from common.tracing import attach_aws_runtime_context, run_traced
 from langfuse import get_client, observe
 
 
@@ -27,7 +27,7 @@ def _tag_photo(photo_id):
         input={"photo_id": photo_id, "s3_key": s3_key},
         metadata={"s3_key": s3_key, "tag_count": len(tags)},
     )
-    attach_aws_lambda_context()
+    attach_aws_runtime_context()
     return {"photo_id": photo_id, "status": "tagged", "s3_key": s3_key, "tag_count": len(tags)}
 
 

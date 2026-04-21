@@ -7,7 +7,7 @@ import numpy as np
 import onnxruntime
 from common.batch_manager import PgBatchManager
 from common.db import get_connection
-from common.tracing import attach_aws_batch_context, kwargs_from_env, traced_handler
+from common.tracing import attach_aws_runtime_context, kwargs_from_env, traced_handler
 from insightface.app import FaceAnalysis
 from langfuse import get_client, observe
 
@@ -31,7 +31,7 @@ def _load_model() -> FaceAnalysis:
 
 @observe(name="stage1_face_detect")
 def _process_batch_inner(batch_id: int, s3_keys: list[str]) -> dict:
-    attach_aws_batch_context()  # 挂 AWS Batch job_id / console_url / app.env 到本 span metadata
+    attach_aws_runtime_context()  # 挂 AWS Batch job_id / console_url / app.env 到本 span metadata
     # bucket 走 env 以适配 AWS（photo-uploads-<acct>-<region>）和本地 MiniStack（photo-uploads）
     s3_bucket = os.environ.get("S3_BUCKET", "photo-uploads")
     lf = get_client()
